@@ -51,10 +51,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.ancien-testament-type-list {
-  /* Add styles for the container if needed */
-}
-
 .type-link {
   display: block; /* Make the link take up the full width */
   padding: 8px 16px;
