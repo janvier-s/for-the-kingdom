@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AncienTestamentView from '../views/AncienTestamentView.vue'
+import TypeDetail from '../components/TypeDetail.vue'
 
 import DataTestView from '../views/DataTestView.vue'
 import BibleView from '../views/BibleView.vue'
@@ -21,6 +22,12 @@ const router = createRouter({
       path: '/ancien-testament',
       name: 'ancien-testament',
       component: AncienTestamentView,
+    },
+    {
+      path: '/:typeName',
+      name: 'type-detail',
+      component: TypeDetail,
+      props: true,
     },
     {
       path: '/supabase-test',

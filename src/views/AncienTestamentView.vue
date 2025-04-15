@@ -4,11 +4,11 @@
       <h1>Ancien Testament</h1>
     </header>
     <main>
-      <AncienTestament />
+      <AncienTestamentTypeList />
     </main>
   </div>
 </template>
 
 <script setup>
-import AncienTestament from '../components/AncienTestamentView.vue'
+import AncienTestamentTypeList from '../components/AncienTestamentTypeList.vue'
 </script>
