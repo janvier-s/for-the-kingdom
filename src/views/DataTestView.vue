@@ -6,11 +6,11 @@
         <router-link to="/">Home</router-link>
       </nav>
     </header>
-    
+
     <main>
       <DataTest />
     </main>
-    
+
     <footer>
       <p>This page demonstrates the Supabase integration.</p>
     </footer>
@@ -71,4 +71,3 @@ footer {
   color: #666;
 }
 </style>
-

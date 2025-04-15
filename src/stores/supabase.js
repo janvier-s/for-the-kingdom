@@ -1,3 +1,4 @@
+// stores/supabase.js
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import supabase from '../supabase'
@@ -23,16 +24,20 @@ export const useSupabaseStore = defineStore('supabase', () => {
   // Initialize the store and set up auth listener
   async function init() {
     isLoading.value = true
-    
+
     try {
       // Get the current session
-      const { data } = await supabase.auth.getSession()
+      const { data, error: sessionError } = await supabase.auth.getSession() // Renamed error to sessionError
+      if (sessionError) {
+        console.error('Error getting session:', sessionError)
+        throw sessionError // Throw the error to be caught by the outer catch block
+      }
       session.value = data.session
-      
+
       if (data.session) {
         user.value = data.session.user
       }
-      
+
       // Listen for auth changes
       supabase.auth.onAuthStateChange((event, newSession) => {
         session.value = newSession
@@ -50,15 +55,19 @@ export const useSupabaseStore = defineStore('supabase', () => {
   async function signInWithEmail(email, password) {
     isLoading.value = true
     error.value = null
-    
+
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
+        // Renamed error to authError
         email,
-        password
+        password,
       })
-      
-      if (authError) throw authError
-      
+
+      if (authError) {
+        console.error('Sign-in error:', authError)
+        throw authError // Throw the error
+      }
+
       user.value = data.user
       session.value = data.session
       return { success: true, data }
@@ -75,15 +84,19 @@ export const useSupabaseStore = defineStore('supabase', () => {
   async function signUpWithEmail(email, password) {
     isLoading.value = true
     error.value = null
-    
+
     try {
       const { data, error: authError } = await supabase.auth.signUp({
+        // Renamed error to authError
         email,
-        password
+        password,
       })
-      
-      if (authError) throw authError
-      
+
+      if (authError) {
+        console.error('Sign-up error:', authError)
+        throw authError // Throw the error
+      }
+
       return { success: true, data }
     } catch (err) {
       setError(err.message || 'Failed to sign up')
@@ -98,12 +111,15 @@ export const useSupabaseStore = defineStore('supabase', () => {
   async function signOut() {
     isLoading.value = true
     error.value = null
-    
+
     try {
-      const { error: authError } = await supabase.auth.signOut()
-      
-      if (authError) throw authError
-      
+      const { error: authError } = await supabase.auth.signOut() // Renamed error to authError
+
+      if (authError) {
+        console.error('Sign-out error:', authError)
+        throw authError // Throw the error
+      }
+
       user.value = null
       session.value = null
       return { success: true }
@@ -131,7 +147,6 @@ export const useSupabaseStore = defineStore('supabase', () => {
     signInWithEmail,
     signUpWithEmail,
     signOut,
-    getCurrentUser
+    getCurrentUser,
   }
 })
-
