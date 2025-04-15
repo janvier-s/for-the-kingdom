@@ -11,13 +11,13 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Initialize Supabase auth state before mounting the app
 const supabaseStore = useSupabaseStore(pinia)
-supabaseStore.init().then(() => {
-  // Mount the app after Supabase is initialized
-  app.mount('#app')
-}).catch(error => {
-  console.error('Failed to initialize Supabase:', error)
-  // Mount the app anyway, even if Supabase initialization fails
-  app.mount('#app')
-})
+supabaseStore
+  .init()
+  .then(() => {
+    app.mount('#app')
+  })
+  .catch((error) => {
+    console.error('Failed to initialize Supabase:', error)
+    app.mount('#app')
+  })

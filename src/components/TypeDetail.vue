@@ -1,30 +1,23 @@
-// components/TypeDetail.vue
 <template>
   <div class="type-detail">
-    <!-- Type Loading/Error State -->
     <div v-if="isLoadingType">Loading type details...</div>
     <div v-else-if="typeError" class="error-message">Error loading type: {{ typeError }}</div>
 
-    <!-- Display Type Name and Book List once type is loaded -->
     <div v-else-if="typeData">
-      <h2>{{ typeData.name }} Books</h2>
-      <!-- Use fetched name -->
+      <h2>{{ typeData.name }}</h2>
 
-      <!-- Books Loading/Error State -->
       <div v-if="isLoadingBooks" class="loading">Loading books...</div>
       <div v-else-if="booksError" class="error-message">Error loading books: {{ booksError }}</div>
 
-      <!-- Book List -->
       <ul v-else-if="books.length > 0" class="book-list">
         <li v-for="book in books" :key="book.book_id">
-          <!-- UPDATED: Use new route name and pass slugs -->
           <router-link
             :to="{
               name: 'book-detail-by-slug',
               params: {
                 testamentSlug: props.testamentSlug,
                 typeSlug: props.typeSlug,
-                bookSlug: book.slug /* Use the book's slug */,
+                bookSlug: book.slug,
               },
             }"
           >
@@ -35,7 +28,6 @@
       <p v-else>No books found for this type.</p>
     </div>
     <div v-else>
-      <!-- Use the PROP typeSlug here for the error message -->
       <p class="error-message">Type with slug '{{ typeSlug }}' not found.</p>
     </div>
   </div>
@@ -45,20 +37,17 @@
 import { defineProps, ref, watch } from 'vue'
 import supabase from '../supabase'
 
-// --- Props ---
 const props = defineProps({
   testamentSlug: {
     type: String,
     required: true,
   },
   typeSlug: {
-    // This is the prop we receive from the router
     type: String,
     required: true,
   },
 })
 
-// --- Reactive State ---
 const typeData = ref(null)
 const books = ref([])
 const isLoadingType = ref(true)
@@ -66,7 +55,6 @@ const typeError = ref(null)
 const isLoadingBooks = ref(false)
 const booksError = ref(null)
 
-// --- Functions ---
 const fetchBooksForType = async (typeId) => {
   if (!typeId) {
     booksError.value = 'Cannot fetch books without a valid Type ID.'
@@ -107,7 +95,6 @@ const fetchTypeData = async (slugToFetch) => {
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        // Use the function parameter slugToFetch in the error message
         throw new Error(`Type with slug '${slugToFetch}' not found.`)
       } else {
         throw fetchError

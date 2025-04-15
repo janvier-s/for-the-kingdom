@@ -1,11 +1,7 @@
-// components/TestamentTypeList.vue
 <template>
   <div class="testament-type-list">
-    <!-- Add console log here to check received props -->
-    {{ logReceivedProps() }}
     <p v-if="isLoading">Loading types...</p>
     <p v-else-if="error">Error loading types: {{ error }}</p>
-    <!-- Display specific error -->
     <div v-else-if="types.length > 0">
       <router-link
         v-for="type in types"
@@ -43,11 +39,7 @@ const isLoading = ref(true)
 const error = ref(null)
 
 const fetchTypes = async (id) => {
-  // Add detailed logging
-  console.log(`TestamentTypeList: fetchTypes called with ID: ${id}`) // 1. Log entry
-
   if (typeof id !== 'number' || isNaN(id)) {
-    // 2. Validate ID early
     types.value = []
     error.value = `Invalid Testament ID received: ${id}`
     isLoading.value = false
@@ -60,48 +52,88 @@ const fetchTypes = async (id) => {
   types.value = []
 
   try {
-    console.log(`TestamentTypeList: Querying Supabase for types with testament_id = ${id}`) // 3. Log before query
     const { data, error: fetchError } = await supabase
       .from('types')
       .select('name, slug')
       .eq('testament_id', id)
 
-    // 4. Log Supabase response
-    console.log(`TestamentTypeList: Supabase response for ID ${id}:`, { data, fetchError })
-
     if (fetchError) {
-      console.error(`TestamentTypeList: Supabase error for ID ${id}:`, fetchError) // 5. Log error object
-      throw fetchError // Throw to be caught below
+      throw fetchError
     }
 
-    // 6. Log successful data
-    console.log(`TestamentTypeList: Successfully fetched data for ID ${id}:`, data)
     types.value = data
   } catch (err) {
-    // 7. Log caught error
-    console.error(`TestamentTypeList: CATCH block error for ID ${id}:`, err)
     error.value = err.message || `Failed to fetch types for Testament ID ${id}`
   } finally {
-    // 8. Log before setting isLoading false
-    console.log(`TestamentTypeList: FINALLY block for ID ${id}. Setting isLoading to false.`)
     isLoading.value = false
   }
-}
-
-// Helper function for logging received props in template
-const logReceivedProps = () => {
-  console.log(`TestamentTypeList rendering. Received props:`, props)
 }
 
 watch(
   () => props.testamentId,
   (newId) => {
-    fetchTypes(newId) // Make sure newId is actually a number here
+    fetchTypes(newId)
   },
   { immediate: true },
 )
 </script>
 
 <style scoped>
-/* ... styles ... */
+.testament-type-list {
+  /* Can add padding/margin here if needed, but often handled by parent */
+  /* padding: 10px 0; */
+}
+
+.loading,
+.testament-type-list > p:last-child {
+  /* Target loading and 'No types found' */
+  text-align: center;
+  color: #6c757d; /* Softer grey */
+  margin: 20px 0;
+  padding: 10px;
+  font-style: italic;
+  background-color: #f8f9fa; /* Very light grey background */
+  border-radius: 4px;
+}
+
+.error-message {
+  /* Consistent error styling */
+  color: #d9534f;
+  background-color: #f2dede;
+  border: 1px solid #ebccd1;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 10px 0;
+  text-align: center;
+}
+
+.type-link {
+  display: block; /* Make link take full width */
+  text-decoration: none;
+  color: #34495e; /* Match heading color */
+  background-color: #ffffff;
+  border: 1px solid #e1e8ed; /* Slightly different border */
+  padding: 12px 18px; /* Adjust padding */
+  margin-bottom: 10px; /* Space between links */
+  border-radius: 6px; /* Slightly less rounded */
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.type-link:hover,
+.type-link:focus {
+  background-color: #f8fafd;
+  border-color: #cdddeb; /* Lighter blue border on hover */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  outline: none; /* Remove focus outline if desired */
+}
+
+.type-link:last-child {
+  margin-bottom: 0; /* Remove bottom margin from the last link */
+}
 </style>
