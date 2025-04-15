@@ -52,10 +52,31 @@ const router = createRouter({
       props: true,
     },
     {
-      path: '/book/:bookId(\\d+)',
-      name: 'book-detail',
+      path: '/:testamentSlug/:typeSlug/:bookSlug',
+      name: 'book-detail-by-slug',
       component: BookDetail,
       props: true,
+      beforeEnter: async (to, from, next) => {
+        const bookSlug = to.params.bookSlug
+        try {
+          const { data, error } = await supabase
+            .from('books')
+            .select('book_id, slug') // Fetch ID and slug
+            .eq('slug', bookSlug) // Match book slug
+            .single()
+
+          if (error) throw error // Let catch block handle DB error
+
+          if (data) {
+            to.params.bookId = data.book_id
+            next()
+          } else {
+            next(new Error(`Book with slug '${bookSlug}' not found.`))
+          }
+        } catch (err) {
+          next(new Error(`Error finding book: ${err.message}`))
+        }
+      },
     },
     // {
     //   path: '/:pathMatch(.*)*',

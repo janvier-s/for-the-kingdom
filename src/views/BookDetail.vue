@@ -37,6 +37,18 @@ const props = defineProps({
     type: [String, Number],
     required: true,
   },
+  testamentSlug: {
+    type: String,
+    required: false,
+  },
+  typeSlug: {
+    type: String,
+    required: false,
+  },
+  bookSlug: {
+    type: String,
+    required: true,
+  },
 })
 
 // --- State ---
@@ -44,48 +56,37 @@ const bookData = ref(null)
 const chapters = ref([])
 const verses = ref([])
 const selectedChapterId = ref(null)
-const selectedChapterNumber = ref(1) // Default to chapter 1
-const selectedVersionId = ref(1) // !!! IMPORTANT: Choose a default Bible Version ID !!!
-// You'll need to fetch versions later for a dropdown
-
+const selectedChapterNumber = ref(1)
+const selectedVersionId = ref(1) // Default version ID
 const isLoadingBook = ref(true)
 const bookError = ref(null)
-const isLoadingContent = ref(false) // For chapters/verses
+const isLoadingContent = ref(false)
 const contentError = ref(null)
 
-// --- Functions ---
-
-// Fetch basic details for the book
 const fetchBookDetails = async (id) => {
   isLoadingBook.value = true
   bookError.value = null
   bookData.value = null
-  console.log(`Fetching details for bookId: ${id}`)
   try {
     const { data, error } = await supabase
       .from('books')
-      .select('book_id, title, abbr') // Select needed fields
+      .select('book_id, title')
       .eq('book_id', id)
       .single()
     if (error) throw error
     bookData.value = data
-    console.log('Book details:', data)
   } catch (err) {
-    console.error('Error fetching book details:', err)
     bookError.value = err.message || 'Failed to load book details.'
   } finally {
     isLoadingBook.value = false
   }
 }
-
-// Fetch all chapters for the book
 const fetchChapters = async (bookId) => {
-  isLoadingContent.value = true // Use content loading state
+  isLoadingContent.value = true
   contentError.value = null
   chapters.value = []
-  selectedChapterId.value = null // Reset selected chapter
-  verses.value = [] // Clear verses when chapters change
-  console.log(`Fetching chapters for bookId: ${bookId}`)
+  selectedChapterId.value = null
+  verses.value = []
   try {
     const { data, error } = await supabase
       .from('chapters')
@@ -94,17 +95,13 @@ const fetchChapters = async (bookId) => {
       .order('chapter_number')
     if (error) throw error
     chapters.value = data
-    console.log('Fetched chapters:', data)
 
-    // *** Automatically find and select Chapter 1 ***
     const chapterOne = chapters.value.find((ch) => ch.chapter_number === 1)
     if (chapterOne) {
       selectedChapterId.value = chapterOne.chapter_id
       selectedChapterNumber.value = 1
-      // Now fetch verses for chapter 1
       await fetchVerses(chapterOne.chapter_id, selectedVersionId.value)
     } else if (chapters.value.length > 0) {
-      // Fallback: select the first chapter if chapter 1 not found (unlikely)
       selectedChapterId.value = chapters.value[0].chapter_id
       selectedChapterNumber.value = chapters.value[0].chapter_number
       await fetchVerses(chapters.value[0].chapter_id, selectedVersionId.value)
@@ -112,16 +109,12 @@ const fetchChapters = async (bookId) => {
       contentError.value = 'No chapters found for this book.'
     }
   } catch (err) {
-    console.error('Error fetching chapters:', err)
     contentError.value = err.message || 'Failed to load chapters.'
-  } finally {
-    // isLoadingContent is set to false within fetchVerses or if errors occur
   }
 }
 
-// Fetch verses for a specific chapter and version
 const fetchVerses = async (chapterId, versionId) => {
-  isLoadingContent.value = true // Still loading content overall
+  isLoadingContent.value = true
   contentError.value = null
   verses.value = []
   if (!chapterId || !versionId) {
@@ -129,7 +122,6 @@ const fetchVerses = async (chapterId, versionId) => {
     isLoadingContent.value = false
     return
   }
-  console.log(`Fetching verses for chapterId: ${chapterId}, versionId: ${versionId}`)
   try {
     const { data, error } = await supabase
       .from('verses')
@@ -139,9 +131,7 @@ const fetchVerses = async (chapterId, versionId) => {
       .order('verse_number')
     if (error) throw error
     verses.value = data
-    console.log('Fetched verses:', data)
   } catch (err) {
-    console.error('Error fetching verses:', err)
     contentError.value = err.message || 'Failed to load verses.'
   } finally {
     isLoadingContent.value = false
@@ -152,9 +142,8 @@ const fetchVerses = async (chapterId, versionId) => {
 watch(
   () => props.bookId,
   async (newBookId) => {
-    const id = Number(newBookId) // Ensure ID is a number
+    const id = Number(newBookId)
     if (!isNaN(id)) {
-      // Reset state when book changes
       bookData.value = null
       chapters.value = []
       verses.value = []
@@ -164,16 +153,15 @@ watch(
       contentError.value = null
 
       await fetchBookDetails(id)
-      // Only fetch chapters if book details were successfully loaded
       if (bookData.value) {
         await fetchChapters(id)
       }
     } else {
       bookError.value = 'Invalid Book ID provided.'
-      isLoadingBook.value = false // Stop loading if ID invalid
+      isLoadingBook.value = false
     }
   },
-  { immediate: true }, // Run immediately when component mounts
+  { immediate: true },
 )
 </script>
 

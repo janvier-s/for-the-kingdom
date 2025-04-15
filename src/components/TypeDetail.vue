@@ -17,7 +17,17 @@
       <!-- Book List -->
       <ul v-else-if="books.length > 0" class="book-list">
         <li v-for="book in books" :key="book.book_id">
-          <router-link :to="{ name: 'book-detail', params: { bookId: book.book_id } }">
+          <!-- UPDATED: Use new route name and pass slugs -->
+          <router-link
+            :to="{
+              name: 'book-detail-by-slug',
+              params: {
+                testamentSlug: props.testamentSlug,
+                typeSlug: props.typeSlug,
+                bookSlug: book.slug /* Use the book's slug */,
+              },
+            }"
+          >
             {{ book.title }}
           </router-link>
         </li>
@@ -58,7 +68,6 @@ const booksError = ref(null)
 
 // --- Functions ---
 const fetchBooksForType = async (typeId) => {
-  // This function remains the same
   if (!typeId) {
     booksError.value = 'Cannot fetch books without a valid Type ID.'
     return
@@ -66,26 +75,21 @@ const fetchBooksForType = async (typeId) => {
   isLoadingBooks.value = true
   booksError.value = null
   books.value = []
-  console.log(`Fetching books for type_id: ${typeId}`)
   try {
     const { data, error: fetchError } = await supabase
       .from('books')
-      .select('*')
+      .select('book_id, title, abbr, slug')
       .eq('type_id', typeId)
       .order('bible_order')
     if (fetchError) throw fetchError
     books.value = data
-    console.log('Fetched books:', data)
   } catch (err) {
-    console.error('Error fetching books for type:', err)
     booksError.value = err.message || 'Failed to fetch books'
   } finally {
     isLoadingBooks.value = false
   }
 }
 
-// Fetch type data based on SLUG passed as parameter
-// Rename parameter to avoid confusion with the prop 'typeSlug'
 const fetchTypeData = async (slugToFetch) => {
   isLoadingType.value = true
   typeError.value = null
@@ -94,14 +98,10 @@ const fetchTypeData = async (slugToFetch) => {
   isLoadingBooks.value = false
   booksError.value = null
 
-  // Use the function parameter slugToFetch
-  console.log(`Fetching data for type slug: ${slugToFetch}`)
-
   try {
     const { data, error: fetchError } = await supabase
       .from('types')
       .select('type_id, name, slug')
-      // Use the function parameter slugToFetch in the query
       .eq('slug', slugToFetch)
       .single()
 
@@ -115,7 +115,6 @@ const fetchTypeData = async (slugToFetch) => {
     }
 
     typeData.value = data
-    console.log('Fetched type data:', data)
 
     if (data && data.type_id) {
       await fetchBooksForType(data.type_id)
@@ -123,21 +122,16 @@ const fetchTypeData = async (slugToFetch) => {
       booksError.value = 'Could not determine Type ID to fetch books.'
     }
   } catch (err) {
-    console.error('Error fetching type data by slug:', err)
     typeError.value = err.message || 'Failed to fetch type data'
   } finally {
     isLoadingType.value = false
   }
 }
 
-// --- Watcher ---
-// Watch the typeSlug PROP
 watch(
   () => props.typeSlug,
   (newSlug) => {
-    // newSlug holds the value of props.typeSlug
     if (newSlug) {
-      // Pass the newSlug value to the fetch function
       fetchTypeData(newSlug)
     }
   },
@@ -146,7 +140,6 @@ watch(
 </script>
 
 <style scoped>
-/* ... styles remain the same ... */
 .type-detail {
   padding: 20px;
   margin: 20px 0;
