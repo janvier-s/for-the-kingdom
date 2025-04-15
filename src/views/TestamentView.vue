@@ -91,17 +91,3 @@ watch(
   { immediate: true },
 )
 </script>
-
-<style scoped>
-.testament-view {
-  padding: 20px;
-}
-header {
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
-}
-.error-message {
-  color: red;
-}
-</style>

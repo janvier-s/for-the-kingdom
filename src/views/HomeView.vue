@@ -1,15 +1,15 @@
 <template>
-  <div class="home-view">
-    <h1>Bible Testaments</h1>
+  <div class="home-view container">
+    <h1>Testaments de la Bible</h1>
 
-    <div v-if="isLoading" class="loading">Loading testament information...</div>
-    <div v-else-if="error" class="error-message">Error loading testaments: {{ error }}</div>
+    <div v-if="isLoading" class="loading-text">Loading testament information...</div>
+    <div v-else-if="error" class="error-box">Error loading testaments: {{ error }}</div>
 
     <section v-else-if="testaments.length > 0" class="testament-sections">
       <div
         v-for="testament in testaments"
         :key="testament.testament_id"
-        class="testament-section"
+        class="testament-section card-link"
         @click="goToTestament(testament.slug)"
         role="link"
         tabindex="0"
@@ -19,7 +19,9 @@
       </div>
     </section>
 
-    <p v-else>No testaments found in the database.</p>
+    <p v-else style="text-align: center; color: var(--text-secondary)">
+      No testaments found in the database.
+    </p>
   </div>
 </template>
 
@@ -66,69 +68,52 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.home-view {
-  padding: 20px;
-  max-width: 900px; /* Adjusted max-width */
-  margin: 2rem auto; /* Added top/bottom margin */
-}
-
-h1 {
-  text-align: center;
-  margin-bottom: 2rem; /* Increased margin */
-  color: #2c3e50; /* Darker heading color */
-  font-weight: 300; /* Lighter font weight */
-  letter-spacing: 1px;
-}
-
-.loading {
-  text-align: center;
-  color: #666;
-  margin: 40px 0;
-  font-style: italic;
-}
-
-.error-message {
-  color: #d9534f;
-  background-color: #f2dede;
-  border: 1px solid #ebccd1;
-  padding: 15px; /* Increased padding */
-  border-radius: 4px;
-  margin: 20px 0;
-  text-align: center;
-}
-
 .testament-sections {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Responsive columns */
-  gap: 25px; /* Increased gap */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Slightly larger min width */
+  gap: var(--spacing-xl); /* Use variable for gap */
+  margin-top: var(--spacing-xl); /* Add some space above the grid */
 }
 
+/* Enhance the card styles provided by .card-link (from main.css) */
 .testament-section {
-  border: 1px solid #dce4ec; /* Softer border */
-  padding: 30px 20px; /* Increased padding */
-  border-radius: 8px;
-  background-color: #ffffff; /* White background */
+  /* Override/Enhance padding */
+  padding: var(--spacing-xl) var(--spacing-lg);
+  /* Ensure background uses variable */
+  background-color: var(--bg-secondary);
+  /* Ensure border uses variable */
+  border: 1px solid var(--border-primary);
+  /* Ensure border-radius uses variable */
+  border-radius: var(--radius-lg);
+  /* More pronounced base shadow */
+  box-shadow: 0 4px 6px var(--shadow-color-light);
+  /* Ensure transitions cover transform and shadow */
   transition:
-    background-color 0.2s ease-in-out,
-    transform 0.2s ease-in-out,
-    /* Smoother transform */ box-shadow 0.2s ease-in-out; /* Added shadow transition */
+    transform var(--transition-fast),
+    box-shadow var(--transition-std),
+    border-color var(--transition-std);
   cursor: pointer;
   outline: none;
-  text-align: center; /* Center the heading */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); /* Subtle shadow */
+  text-align: center;
+  display: flex; /* Use flexbox for alignment */
+  flex-direction: column; /* Stack content vertically */
+  justify-content: center; /* Center content vertically */
+  align-items: center; /* Center content horizontally */
+  min-height: 150px; /* Give cards a minimum height */
 }
 
 .testament-section:hover,
 .testament-section:focus {
-  background-color: #f8fafd; /* Light blueish hover */
-  transform: translateY(-4px); /* Slightly more lift */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08); /* Enhanced shadow on hover */
+  transform: translateY(-2px) scale(1.002);
+  box-shadow: 0 10px 20px var(--shadow-color-light);
 }
 
 .testament-section h2 {
-  color: #34495e; /* Darker blue-grey heading */
-  margin: 0; /* Remove default margin */
-  font-weight: 400; /* Normal weight */
-  font-size: 1.4rem; /* Slightly larger heading */
+  color: var(--text-heading);
+  margin: 0;
+  font-weight: 500; /* Medium weight */
+  font-size: 1.6rem; /* Larger title */
+  letter-spacing: 0.5px;
+  line-height: 1.3;
 }
 </style>
