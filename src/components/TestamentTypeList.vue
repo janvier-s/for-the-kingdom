@@ -1,15 +1,22 @@
+// components/TestamentTypeList.vue
 <template>
   <div class="testament-type-list">
+    <!-- Add console log here to check received props -->
+    {{ logReceivedProps() }}
     <p v-if="isLoading">Loading types...</p>
-    <p v-else-if="error">{{ error }}</p>
+    <p v-else-if="error">Error loading types: {{ error }}</p>
+    <!-- Display specific error -->
     <div v-else-if="types.length > 0">
       <router-link
         v-for="type in types"
-        :key="type"
-        :to="{ name: 'type-detail', params: { typeName: type } }"
+        :key="type.slug"
+        :to="{
+          name: 'type-detail-by-slug',
+          params: { testamentSlug: props.testamentSlug, typeSlug: type.slug },
+        }"
         class="type-link"
       >
-        {{ type }}
+        {{ type.name }}
       </router-link>
     </div>
     <p v-else>No types found for this testament.</p>
@@ -17,15 +24,17 @@
 </template>
 
 <script setup>
-// REMOVE onMounted from here
 import { ref, watch, defineProps } from 'vue'
 import supabase from '../supabase'
 
-// Define the props this component expects
 const props = defineProps({
   testamentId: {
-    type: Number, // Expecting a number
-    required: true, // This prop is mandatory
+    type: Number,
+    required: true,
+  },
+  testamentSlug: {
+    type: String,
+    required: true,
   },
 })
 
@@ -33,61 +42,66 @@ const types = ref([])
 const isLoading = ref(true)
 const error = ref(null)
 
-// Function to fetch types based on the testamentId prop
 const fetchTypes = async (id) => {
-  if (!id) {
+  // Add detailed logging
+  console.log(`TestamentTypeList: fetchTypes called with ID: ${id}`) // 1. Log entry
+
+  if (typeof id !== 'number' || isNaN(id)) {
+    // 2. Validate ID early
     types.value = []
-    error.value = 'Invalid Testament ID provided.'
+    error.value = `Invalid Testament ID received: ${id}`
     isLoading.value = false
+    console.error(error.value)
     return
   }
+
   isLoading.value = true
   error.value = null
-  types.value = [] // Clear previous types
+  types.value = []
 
   try {
+    console.log(`TestamentTypeList: Querying Supabase for types with testament_id = ${id}`) // 3. Log before query
     const { data, error: fetchError } = await supabase
       .from('types')
-      .select('name')
-      .eq('testament_id', id) // Use the testamentId from props
+      .select('name, slug')
+      .eq('testament_id', id)
+
+    // 4. Log Supabase response
+    console.log(`TestamentTypeList: Supabase response for ID ${id}:`, { data, fetchError })
 
     if (fetchError) {
-      throw fetchError
+      console.error(`TestamentTypeList: Supabase error for ID ${id}:`, fetchError) // 5. Log error object
+      throw fetchError // Throw to be caught below
     }
 
-    types.value = data.map((type) => type.name)
-    console.log(`Available types for testament ${id}:`, types.value)
+    // 6. Log successful data
+    console.log(`TestamentTypeList: Successfully fetched data for ID ${id}:`, data)
+    types.value = data
   } catch (err) {
-    console.error(`Error fetching types for testament ${id}:`, err)
-    error.value = err.message || 'Failed to fetch types'
+    // 7. Log caught error
+    console.error(`TestamentTypeList: CATCH block error for ID ${id}:`, err)
+    error.value = err.message || `Failed to fetch types for Testament ID ${id}`
   } finally {
+    // 8. Log before setting isLoading false
+    console.log(`TestamentTypeList: FINALLY block for ID ${id}. Setting isLoading to false.`)
     isLoading.value = false
   }
 }
 
-// Watch the testamentId prop for changes
+// Helper function for logging received props in template
+const logReceivedProps = () => {
+  console.log(`TestamentTypeList rendering. Received props:`, props)
+}
+
 watch(
   () => props.testamentId,
   (newId) => {
-    fetchTypes(newId)
+    fetchTypes(newId) // Make sure newId is actually a number here
   },
-  { immediate: true }, // Fetch immediately when the component mounts/prop is first set
+  { immediate: true },
 )
 </script>
 
 <style scoped>
-.type-link {
-  display: block; /* Make the link take up the full width */
-  padding: 8px 16px;
-  margin: 5px;
-  border: 1px solid #ccc;
-  cursor: pointer;
-  border-radius: 4px;
-  text-decoration: none; /* Remove underline from links */
-  color: #333; /* Set link color */
-}
-
-.type-link:hover {
-  background-color: #f0f0f0;
-}
+/* ... styles ... */
 </style>

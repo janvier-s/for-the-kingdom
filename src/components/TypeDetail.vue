@@ -1,75 +1,79 @@
+// components/TypeDetail.vue
 <template>
   <div class="type-detail">
+    <!-- Type Loading/Error State -->
     <div v-if="isLoadingType">Loading type details...</div>
     <div v-else-if="typeError" class="error-message">Error loading type: {{ typeError }}</div>
 
+    <!-- Display Type Name and Book List once type is loaded -->
     <div v-else-if="typeData">
-      <h2>{{ typeData.name }}</h2>
-      <p v-if="typeName !== typeData.name">(Requested Type Name: {{ typeName }})</p>
+      <h2>{{ typeData.name }} Books</h2>
+      <!-- Use fetched name -->
 
+      <!-- Books Loading/Error State -->
       <div v-if="isLoadingBooks" class="loading">Loading books...</div>
       <div v-else-if="booksError" class="error-message">Error loading books: {{ booksError }}</div>
 
+      <!-- Book List -->
       <ul v-else-if="books.length > 0" class="book-list">
         <li v-for="book in books" :key="book.book_id">
-          {{ book.title }}
+          <router-link :to="{ name: 'book-detail', params: { bookId: book.book_id } }">
+            {{ book.title }}
+          </router-link>
         </li>
       </ul>
       <p v-else>No books found for this type.</p>
     </div>
     <div v-else>
-      <!-- This case might happen if the type name doesn't exist -->
-      <p class="error-message">Type '{{ typeName }}' not found.</p>
+      <!-- Use the PROP typeSlug here for the error message -->
+      <p class="error-message">Type with slug '{{ typeSlug }}' not found.</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { defineProps, onMounted, ref } from 'vue'
+import { defineProps, ref, watch } from 'vue'
 import supabase from '../supabase'
 
 // --- Props ---
 const props = defineProps({
-  typeName: {
+  testamentSlug: {
+    type: String,
+    required: true,
+  },
+  typeSlug: {
+    // This is the prop we receive from the router
     type: String,
     required: true,
   },
 })
 
 // --- Reactive State ---
-const typeData = ref(null) // To store the full data for the type (including id)
-const books = ref([]) // To store the list of books for this type
-const isLoadingType = ref(true) // Loading state for fetching the type
-const typeError = ref(null) // Error state for fetching the type
-const isLoadingBooks = ref(false) // Loading state for fetching books (starts false)
-const booksError = ref(null) // Error state for fetching books
+const typeData = ref(null)
+const books = ref([])
+const isLoadingType = ref(true)
+const typeError = ref(null)
+const isLoadingBooks = ref(false)
+const booksError = ref(null)
 
 // --- Functions ---
-
-// Function to fetch books associated with a specific type ID
 const fetchBooksForType = async (typeId) => {
+  // This function remains the same
   if (!typeId) {
     booksError.value = 'Cannot fetch books without a valid Type ID.'
     return
   }
-
   isLoadingBooks.value = true
   booksError.value = null
-  books.value = [] // Clear previous books
-
+  books.value = []
   console.log(`Fetching books for type_id: ${typeId}`)
-
   try {
     const { data, error: fetchError } = await supabase
       .from('books')
-      .select('*') // Select all book columns or specific ones needed
+      .select('*')
       .eq('type_id', typeId)
-      .order('bible_order') // Order books correctly
-
-    if (fetchError) {
-      throw fetchError // Throw error to be caught below
-    }
-
+      .order('bible_order')
+    if (fetchError) throw fetchError
     books.value = data
     console.log('Fetched books:', data)
   } catch (err) {
@@ -80,8 +84,9 @@ const fetchBooksForType = async (typeId) => {
   }
 }
 
-// Function to fetch the type's data (including its ID)
-const fetchTypeData = async () => {
+// Fetch type data based on SLUG passed as parameter
+// Rename parameter to avoid confusion with the prop 'typeSlug'
+const fetchTypeData = async (slugToFetch) => {
   isLoadingType.value = true
   typeError.value = null
   typeData.value = null
@@ -89,21 +94,23 @@ const fetchTypeData = async () => {
   isLoadingBooks.value = false
   booksError.value = null
 
-  console.log(`Fetching data for type name: ${props.typeName}`)
+  // Use the function parameter slugToFetch
+  console.log(`Fetching data for type slug: ${slugToFetch}`)
 
   try {
     const { data, error: fetchError } = await supabase
       .from('types')
-      .select('type_id, name')
-      .eq('name', props.typeName)
+      .select('type_id, name, slug')
+      // Use the function parameter slugToFetch in the query
+      .eq('slug', slugToFetch)
       .single()
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        // PostgREST code for "exact one row not found"
-        throw new Error(`Type '${props.typeName}' not found.`)
+        // Use the function parameter slugToFetch in the error message
+        throw new Error(`Type with slug '${slugToFetch}' not found.`)
       } else {
-        throw fetchError // Throw other DB errors
+        throw fetchError
       }
     }
 
@@ -116,46 +123,59 @@ const fetchTypeData = async () => {
       booksError.value = 'Could not determine Type ID to fetch books.'
     }
   } catch (err) {
-    console.error('Error fetching type data:', err)
+    console.error('Error fetching type data by slug:', err)
     typeError.value = err.message || 'Failed to fetch type data'
   } finally {
     isLoadingType.value = false
   }
 }
 
-onMounted(() => {
-  fetchTypeData()
-})
+// --- Watcher ---
+// Watch the typeSlug PROP
+watch(
+  () => props.typeSlug,
+  (newSlug) => {
+    // newSlug holds the value of props.typeSlug
+    if (newSlug) {
+      // Pass the newSlug value to the fetch function
+      fetchTypeData(newSlug)
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
+/* ... styles remain the same ... */
 .type-detail {
   padding: 20px;
   margin: 20px 0;
 }
-
 .book-list {
   list-style: none;
   padding: 0;
   margin-top: 15px;
 }
-
 .book-list li {
   padding: 5px 0;
   border-bottom: 1px dashed #eee;
 }
-
 .book-list li:last-child {
   border-bottom: none;
 }
-
+.book-list li a {
+  text-decoration: none;
+  color: #007bff;
+}
+.book-list li a:hover {
+  text-decoration: underline;
+}
 .loading {
   color: #666;
   margin: 10px 0;
 }
-
 .error-message {
-  color: #d9534f; /* Red color for errors */
+  color: #d9534f;
   background-color: #f2dede;
   border: 1px solid #ebccd1;
   padding: 10px;

@@ -12,26 +12,38 @@
     </header>
 
     <main>
-      <!-- Pass the testamentId as a prop -->
-      <TestamentTypeList :testament-id="testamentId" />
+      <TestamentTypeList
+        v-if="testamentId && testamentSlug"
+        :testament-id="testamentId"
+        :testament-slug="testamentSlug"
+      />
+      <p v-else-if="!isLoading">Missing testament data to load types.</p>
     </main>
   </div>
 </template>
 
 <script setup>
-// REMOVE onMounted from here
-import { ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, watch, defineProps } from 'vue'
 import supabase from '../supabase'
 import TestamentTypeList from '../components/TestamentTypeList.vue'
 
-const route = useRoute()
-const testamentId = ref(null)
+const props = defineProps({
+  testamentId: {
+    type: [Number, String], // Route params can initially be strings
+    required: true,
+  },
+  testamentSlug: {
+    type: String,
+    required: true,
+  },
+})
+
+const testamentId = ref(Number(props.testamentId))
+const testamentSlug = ref(props.testamentSlug)
 const testamentName = ref('')
 const isLoading = ref(true)
 const error = ref(null)
 
-// Function to fetch testament details (including the name)
 const fetchTestamentDetails = async (id) => {
   if (!id) return
   isLoading.value = true
@@ -64,14 +76,15 @@ const fetchTestamentDetails = async (id) => {
 
 // Watch for changes in the route parameter 'testamentId'
 watch(
-  () => route.params.testamentId,
+  () => props.testamentId,
   (newId) => {
     const idAsNumber = Number(newId)
     if (!isNaN(idAsNumber)) {
       testamentId.value = idAsNumber
+      testamentSlug.value = props.testamentSlug
       fetchTestamentDetails(idAsNumber)
     } else {
-      error.value = 'Invalid Testament ID in URL.'
+      error.value = 'Invalid Testament ID received.'
       isLoading.value = false
     }
   },

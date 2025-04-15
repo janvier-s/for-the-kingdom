@@ -1,0 +1,215 @@
+<template>
+  <div class="book-detail">
+    <header v-if="isLoadingBook">Loading book details...</header>
+    <header v-else-if="bookError" class="error-message">Error loading book: {{ bookError }}</header>
+    <header v-else-if="bookData">
+      <h1>{{ bookData.title }}</h1>
+    </header>
+    <header v-else>
+      <h1 class="error-message">Book not found.</h1>
+    </header>
+
+    <main v-if="bookData">
+      <div v-if="isLoadingContent" class="loading">Loading content...</div>
+      <div v-else-if="contentError" class="error-message">
+        Error loading content: {{ contentError }}
+      </div>
+
+      <div v-else-if="verses.length > 0">
+        <h2>Chapter {{ selectedChapterNumber }}</h2>
+        <div class="verses-container">
+          <p v-for="verse in verses" :key="verse.verse_id" class="verse">
+            <sup>{{ verse.verse_number }}</sup> {{ verse.verse_text }}
+          </p>
+        </div>
+      </div>
+      <p v-else>No verses found for this chapter/version.</p>
+    </main>
+  </div>
+</template>
+
+<script setup>
+import { ref, watch, defineProps } from 'vue'
+import supabase from '../supabase'
+
+const props = defineProps({
+  bookId: {
+    type: [String, Number],
+    required: true,
+  },
+})
+
+// --- State ---
+const bookData = ref(null)
+const chapters = ref([])
+const verses = ref([])
+const selectedChapterId = ref(null)
+const selectedChapterNumber = ref(1) // Default to chapter 1
+const selectedVersionId = ref(1) // !!! IMPORTANT: Choose a default Bible Version ID !!!
+// You'll need to fetch versions later for a dropdown
+
+const isLoadingBook = ref(true)
+const bookError = ref(null)
+const isLoadingContent = ref(false) // For chapters/verses
+const contentError = ref(null)
+
+// --- Functions ---
+
+// Fetch basic details for the book
+const fetchBookDetails = async (id) => {
+  isLoadingBook.value = true
+  bookError.value = null
+  bookData.value = null
+  console.log(`Fetching details for bookId: ${id}`)
+  try {
+    const { data, error } = await supabase
+      .from('books')
+      .select('book_id, title, abbr') // Select needed fields
+      .eq('book_id', id)
+      .single()
+    if (error) throw error
+    bookData.value = data
+    console.log('Book details:', data)
+  } catch (err) {
+    console.error('Error fetching book details:', err)
+    bookError.value = err.message || 'Failed to load book details.'
+  } finally {
+    isLoadingBook.value = false
+  }
+}
+
+// Fetch all chapters for the book
+const fetchChapters = async (bookId) => {
+  isLoadingContent.value = true // Use content loading state
+  contentError.value = null
+  chapters.value = []
+  selectedChapterId.value = null // Reset selected chapter
+  verses.value = [] // Clear verses when chapters change
+  console.log(`Fetching chapters for bookId: ${bookId}`)
+  try {
+    const { data, error } = await supabase
+      .from('chapters')
+      .select('chapter_id, chapter_number')
+      .eq('book_id', bookId)
+      .order('chapter_number')
+    if (error) throw error
+    chapters.value = data
+    console.log('Fetched chapters:', data)
+
+    // *** Automatically find and select Chapter 1 ***
+    const chapterOne = chapters.value.find((ch) => ch.chapter_number === 1)
+    if (chapterOne) {
+      selectedChapterId.value = chapterOne.chapter_id
+      selectedChapterNumber.value = 1
+      // Now fetch verses for chapter 1
+      await fetchVerses(chapterOne.chapter_id, selectedVersionId.value)
+    } else if (chapters.value.length > 0) {
+      // Fallback: select the first chapter if chapter 1 not found (unlikely)
+      selectedChapterId.value = chapters.value[0].chapter_id
+      selectedChapterNumber.value = chapters.value[0].chapter_number
+      await fetchVerses(chapters.value[0].chapter_id, selectedVersionId.value)
+    } else {
+      contentError.value = 'No chapters found for this book.'
+    }
+  } catch (err) {
+    console.error('Error fetching chapters:', err)
+    contentError.value = err.message || 'Failed to load chapters.'
+  } finally {
+    // isLoadingContent is set to false within fetchVerses or if errors occur
+  }
+}
+
+// Fetch verses for a specific chapter and version
+const fetchVerses = async (chapterId, versionId) => {
+  isLoadingContent.value = true // Still loading content overall
+  contentError.value = null
+  verses.value = []
+  if (!chapterId || !versionId) {
+    contentError.value = 'Missing chapter or version ID.'
+    isLoadingContent.value = false
+    return
+  }
+  console.log(`Fetching verses for chapterId: ${chapterId}, versionId: ${versionId}`)
+  try {
+    const { data, error } = await supabase
+      .from('verses')
+      .select('verse_id, verse_number, verse_text')
+      .eq('chapter_id', chapterId)
+      .eq('version_id', versionId)
+      .order('verse_number')
+    if (error) throw error
+    verses.value = data
+    console.log('Fetched verses:', data)
+  } catch (err) {
+    console.error('Error fetching verses:', err)
+    contentError.value = err.message || 'Failed to load verses.'
+  } finally {
+    isLoadingContent.value = false
+  }
+}
+
+// --- Watcher ---
+watch(
+  () => props.bookId,
+  async (newBookId) => {
+    const id = Number(newBookId) // Ensure ID is a number
+    if (!isNaN(id)) {
+      // Reset state when book changes
+      bookData.value = null
+      chapters.value = []
+      verses.value = []
+      selectedChapterId.value = null
+      selectedChapterNumber.value = 1
+      bookError.value = null
+      contentError.value = null
+
+      await fetchBookDetails(id)
+      // Only fetch chapters if book details were successfully loaded
+      if (bookData.value) {
+        await fetchChapters(id)
+      }
+    } else {
+      bookError.value = 'Invalid Book ID provided.'
+      isLoadingBook.value = false // Stop loading if ID invalid
+    }
+  },
+  { immediate: true }, // Run immediately when component mounts
+)
+</script>
+
+<style scoped>
+.book-detail {
+  padding: 20px;
+}
+header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+.verses-container {
+  margin-top: 15px;
+  line-height: 1.8; /* Improve readability */
+}
+.verse {
+  margin-bottom: 10px; /* Space between verses */
+}
+.verse sup {
+  /* Style verse numbers */
+  font-weight: bold;
+  margin-right: 5px;
+  color: #555;
+}
+.loading {
+  color: #666;
+  margin: 10px 0;
+}
+.error-message {
+  color: #d9534f;
+  background-color: #f2dede;
+  border: 1px solid #ebccd1;
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+</style>
+s
