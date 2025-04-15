@@ -31,7 +31,7 @@ const fetchTables = async () => {
 
   try {
     // Query the 'types' table to fetch its data
-    const { data, error } = await supabase.from('types').select('name')
+    const { data, error } = await supabase.from('types').select('name').eq('testament_id', 1)
 
     if (error) throw error
 
