@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import AncienTestamentView from '../views/AncienTestamentView.vue'
+
 import DataTestView from '../views/DataTestView.vue'
 import BibleView from '../views/BibleView.vue'
 
@@ -14,6 +16,11 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+    },
+    {
+      path: '/ancien-testament',
+      name: 'ancien-testament',
+      component: AncienTestamentView,
     },
     {
       path: '/supabase-test',

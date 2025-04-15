@@ -70,6 +70,8 @@
 import { ref, onMounted } from 'vue'
 import supabase from '../supabase'
 
+// create route books with a child route :id, this id it the title of a booke when i arrive on this route i want the monted hook to get the book data from the supabase databse and diplay it, hereh is my db schema
+
 // State
 const tables = ref([])
 const selectedTable = ref(null)
@@ -118,7 +120,7 @@ const fetchTableData = async (tableName) => {
   dataError.value = null
 
   try {
-    const { data, error } = await supabase.from(tableName).select('*').limit(10)
+    const { data, error } = await supabase.from('books').select('title').eq('title', tableName)
 
     if (error) throw error
 
