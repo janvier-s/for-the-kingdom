@@ -115,10 +115,6 @@ p {
   margin-bottom: var(--spacing-md);
 }
 
-ul,
-ol {
-}
-
 .container {
   max-width: 900px;
   margin-left: auto;

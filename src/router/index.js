@@ -1,9 +1,34 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import TestamentView from '../views/TestamentView.vue'
-import TypeDetail from '../components/TypeDetail.vue'
 import BookDetail from '../views/BookDetail.vue'
 import supabase from '../supabase'
+
+const getLanguageId = async (langName = 'Français') => {
+  if (!getLanguageId.cache) {
+    getLanguageId.cache = {}
+  }
+  if (getLanguageId.cache[langName]) {
+    return getLanguageId.cache[langName]
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('languages')
+      .select('lang_id')
+      .eq('lang', langName)
+      .single()
+
+    if (error) throw error
+    if (!data) throw new Error(`Language '${langName}' not found.`)
+
+    getLanguageId.cache[langName] = data.lang_id
+    return data.lang_id
+  } catch (err) {
+    console.error(`Router Helper Error: Failed to get language ID for ${langName}`, err)
+    throw new Error(`Language setup error: ${err.message}`)
+  }
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,23 +45,35 @@ const router = createRouter({
       props: true,
       beforeEnter: async (to, from, next) => {
         const slug = to.params.testamentSlug
-        console.log(`Route Guard: Finding testament ID and slug for: ${slug}`)
+        console.log(`Route Guard: Finding testament ID for slug: ${slug}`)
         try {
+          const langId = await getLanguageId('Français')
+
           const { data, error } = await supabase
-            .from('testaments')
-            .select('testament_id, slug')
+            .from('testament_translations')
+            .select('testament_id')
             .eq('slug', slug)
+            .eq('lang_id', langId)
             .single()
 
-          if (error) throw error
+          if (error) {
+            if (error.code === 'PGRST116') {
+              console.warn(
+                `Route Guard: No testament translation found for slug: ${slug} and langId: ${langId}`,
+              )
+              return next(
+                new Error(`Testament with slug '${slug}' not found for the selected language.`),
+              )
+            }
+            throw error
+          }
 
-          if (data) {
-            console.log(`Route Guard: Found ID: ${data.testament_id}, Slug: ${data.slug}`)
+          if (data && data.testament_id) {
+            console.log(`Route Guard: Found Testament ID: ${data.testament_id}`)
             to.params.testamentId = data.testament_id
-            to.params.testamentSlug = data.slug
             next()
           } else {
-            console.warn(`Route Guard: No testament found for slug: ${slug}`)
+            console.warn(`Route Guard: No testament data/ID found for slug: ${slug}`)
             next(new Error(`Testament with slug '${slug}' not found.`))
           }
         } catch (err) {
@@ -48,7 +85,7 @@ const router = createRouter({
     {
       path: '/:testamentSlug/:typeSlug',
       name: 'type-detail-by-slug',
-      component: TypeDetail,
+      component: () => import('../components/TypeDetail.vue'),
       props: true,
     },
     {
@@ -56,33 +93,13 @@ const router = createRouter({
       name: 'book-detail-by-slug',
       component: BookDetail,
       props: true,
-      beforeEnter: async (to, from, next) => {
-        const bookSlug = to.params.bookSlug
-        try {
-          const { data, error } = await supabase
-            .from('books')
-            .select('book_id, slug') // Fetch ID and slug
-            .eq('slug', bookSlug) // Match book slug
-            .single()
-
-          if (error) throw error // Let catch block handle DB error
-
-          if (data) {
-            to.params.bookId = data.book_id
-            next()
-          } else {
-            next(new Error(`Book with slug '${bookSlug}' not found.`))
-          }
-        } catch (err) {
-          next(new Error(`Error finding book: ${err.message}`))
-        }
-      },
     },
     // {
     //   path: '/:pathMatch(.*)*',
     //   name: 'NotFound',
-    //   component: () => import('../views/NotFoundView.vue'), // Example: Lazy load a 404 component
+    //   component: () => import('../views/NotFoundView.vue'),
     // },
   ],
 })
+
 export default router
