@@ -1,27 +1,28 @@
+/* Keep only the light theme variables */
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafd;
-  --bg-tertiary: #f8f9fa;
+  --bg-tertiary: #f1f5f9; /* Slightly adjusted tertiary */
   --text-primary: #2c3e50;
-  --text-secondary: #6c757d;
-  --text-heading: #34495e;
-  --text-link: #007bff;
-  --text-link-hover: #0056b3;
-  --border-primary: #dce4ec;
-  --border-secondary: #e1e8ed;
-  --border-hover: #cdddeb;
-  --border-divider: #eee;
-  --error-bg: #f2dede;
-  --error-text: #a94442;
-  --error-border: #ebccd1;
-  --shadow-color-light: rgba(0, 0, 0, 0.04);
-  --shadow-color-medium: rgba(0, 0, 0, 0.08);
+  --text-secondary: #64748b; /* Adjusted secondary text */
+  --text-heading: #1e293b; /* Darker heading */
+  --text-link: #3b82f6; /* Brighter blue link */
+  --text-link-hover: #2563eb; /* Darker blue hover */
+  --border-primary: #e2e8f0; /* Lighter border */
+  --border-secondary: #cbd5e1;
+  --border-hover: #94a3b8; /* Greyish hover border */
+  --border-divider: #f1f5f9; /* Very light divider */
+  --error-bg: #fee2e2; /* Lighter error bg */
+  --error-text: #b91c1c; /* Darker error text */
+  --error-border: #fecaca; /* Lighter error border */
+  --shadow-color-light: rgba(0, 0, 0, 0.05);
+  --shadow-color-medium: rgba(0, 0, 0, 0.1);
 
-  --spacing-xs: 5px;
-  --spacing-sm: 10px;
-  --spacing-md: 15px;
-  --spacing-lg: 20px;
-  --spacing-xl: 30px;
+  --spacing-xs: 4px; /* Adjusted spacing scale slightly */
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
@@ -30,25 +31,7 @@
   --transition-std: 0.2s ease-in-out;
 }
 
-html.dark {
-  --bg-primary: #1a1d21;
-  --bg-secondary: #2c313a;
-  --bg-tertiary: #252930;
-  --text-primary: #e0e6f1;
-  --text-secondary: #adb5bd;
-  --text-heading: #cbd2e0;
-  --text-link: #60a5fa;
-  --text-link-hover: #93c5fd;
-  --border-primary: #404756;
-  --border-secondary: #4a5263;
-  --border-hover: #60a5fa;
-  --border-divider: #3b4252;
-  --error-bg: #4d1a1a;
-  --error-text: #ffcccc;
-  --error-border: #6e2a2a;
-  --shadow-color-light: rgba(0, 0, 0, 0.2);
-  --shadow-color-medium: rgba(0, 0, 0, 0.4);
-}
+/* --- Global Resets & Base Styles --- */
 
 *,
 *::before,
@@ -60,12 +43,21 @@ html.dark {
 
 html {
   font-size: 16px;
+  scroll-behavior: smooth; /* Smooth scrolling for anchors */
 }
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
-    'Apple Color Emoji', 'Segoe UI Emoji';
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif,
+    'Apple Color Emoji',
+    'Segoe UI Emoji'; /* Modern font stack */
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -101,8 +93,6 @@ h6 {
 
 h1 {
   font-size: 2rem;
-  text-align: center;
-  height: 50px;
 }
 h2 {
   font-size: 1.5rem;
@@ -110,61 +100,58 @@ h2 {
 h3 {
   font-size: 1.25rem;
 }
+/* Add h4, h5, h6 if needed */
 
 p {
   margin-bottom: var(--spacing-md);
 }
 
+/* --- Layout & Utility Classes --- */
+
 .container {
-  max-width: 900px;
+  max-width: 960px; /* Slightly wider container */
   margin-left: auto;
   margin-right: auto;
   padding-left: var(--spacing-lg);
   padding-right: var(--spacing-lg);
+  width: 100%;
 }
 
-.loading-text {
-  text-align: center;
-  color: var(--text-secondary);
-  margin: var(--spacing-xl) 0;
-  padding: var(--spacing-sm);
-  font-style: italic;
-  background-color: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
+/* Reusable loading/error text styles (used by base components) */
+.loading-indicator p, /* Target the p inside the component */
+.error-message-box p {
+  /* Target the p inside the component */
+  margin: 0; /* Remove default paragraph margin */
 }
 
-.error-box {
-  color: var(--error-text);
-  background-color: var(--error-bg);
-  border: 1px solid var(--error-border);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-sm);
-  margin: var(--spacing-lg) 0;
-  text-align: center;
-}
-
+/* Card Style */
 .card {
   border: 1px solid var(--border-primary);
   padding: var(--spacing-lg);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-secondary);
-  box-shadow: 0 2px 4px var(--shadow-color-light);
+  background-color: var(--bg-primary); /* Use primary bg for cards */
+  box-shadow:
+    0 1px 3px var(--shadow-color-light),
+    0 1px 2px var(--shadow-color-light); /* Subtle shadow */
   transition:
     box-shadow var(--transition-std),
     transform var(--transition-std);
 }
 
 .card:hover {
-  box-shadow: 0 6px 12px var(--shadow-color-medium);
+  box-shadow:
+    0 4px 6px var(--shadow-color-light),
+    0 1px 3px var(--shadow-color-medium); /* Slightly stronger hover shadow */
   transform: translateY(-2px);
 }
 
+/* List Item Link Style */
 .list-item-link {
   display: block;
   text-decoration: none;
   color: var(--text-primary);
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
+  background-color: var(--bg-secondary); /* Use secondary for list items */
+  border: 1px solid var(--border-primary);
   padding: var(--spacing-sm) var(--spacing-md);
   margin-bottom: var(--spacing-sm);
   border-radius: var(--radius-md);
@@ -173,21 +160,24 @@ p {
     border-color var(--transition-std),
     transform var(--transition-fast),
     box-shadow var(--transition-std);
-  box-shadow: 0 1px 3px var(--shadow-color-light);
+  box-shadow: 0 1px 2px var(--shadow-color-light);
 }
 
 .list-item-link:hover,
 .list-item-link:focus {
-  background-color: #252730;
+  background-color: var(--bg-tertiary); /* Use tertiary for hover */
+  border-color: var(--border-secondary);
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px var(--shadow-color-medium);
+  box-shadow: 0 2px 4px var(--shadow-color-light);
   outline: none;
+  color: var(--text-link); /* Highlight text on hover */
 }
 
 .list-item-link:last-child {
   margin-bottom: 0;
 }
 
+/* Divider */
 .divider {
   border: 0;
   height: 1px;
@@ -195,12 +185,16 @@ p {
   margin: var(--spacing-lg) 0;
 }
 
+/* View Header Style */
 .view-header {
   margin-bottom: var(--spacing-lg);
-  padding-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-md); /* Adjusted padding */
   border-bottom: 1px solid var(--border-divider);
+  text-align: center; /* Center header content by default */
 }
 .view-header h1,
 .view-header h2 {
-  margin-bottom: 0;
+  margin-bottom: 0; /* Remove bottom margin within header */
 }
+
+/* Add other global styles or utility classes as needed */
