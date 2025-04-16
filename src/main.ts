@@ -6,7 +6,8 @@ import App from './App.vue'
 import router from './router'
 import './assets/main.css'
 // Correct the import path if you renamed the store file
-import { useAuthStore } from './stores/auth.store' // Assuming you renamed it to auth.store.ts
+import { useAuthStore } from './stores/auth.store'
+import { vPrefetch } from './directives/prefetch'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -26,7 +27,9 @@ const vueQueryPluginOptions: VueQueryPluginOptions = {
 
 app.use(pinia)
 app.use(router)
-app.use(VueQueryPlugin, vueQueryPluginOptions) // Install Vue Query Plugin
+app.use(VueQueryPlugin, vueQueryPluginOptions)
+
+app.directive('prefetch', vPrefetch)
 
 // Initialize Auth Store (Corrected import name)
 const authStore = useAuthStore() // Use the correct store name

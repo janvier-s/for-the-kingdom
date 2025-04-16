@@ -15,14 +15,13 @@
 
       <div v-if="!isLoadingBooks && !isErrorBooks && books && books.length > 0" class="book-list">
         <router-link v-for="book in books" :key="book.book_id" :to="{
-          name: 'book-detail', // Use the correct route name for books
+          name: 'book-detail',
           params: {
-            testamentSlug: props.testamentSlug, // Pass testament slug through
-            typeSlug: props.typeSlug,           // Pass type slug through
+            testamentSlug: props.testamentSlug,
+            typeSlug: props.typeSlug,
             bookSlug: book.slug
-          }
-        }" class="book-link list-item-link" @mouseenter="prefetchBookDetails(book.slug)"
-          @focus="prefetchBookDetails(book.slug)">
+          },
+        }" class="book-link list-item-link" v-prefetch="createBookPrefetchOptions(book.slug)">
           {{ book.title }}
         </router-link>
       </div>
@@ -36,9 +35,8 @@
 
 <script setup lang="ts">
 import { computed, type Ref, watch } from 'vue';
-import { useQueryClient } from '@tanstack/vue-query';
 import { useTypeDetails, useBooksByType } from '@/composables/useBibleData';
-import { fetchBookBySlug } from '@/services/apiService';
+import { createBookPrefetchOptions } from '@/utils/prefetchHelpers';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
@@ -47,26 +45,10 @@ interface Props {
   typeSlug: string;
 }
 const props = defineProps<Props>();
-const queryClient = useQueryClient();
 
 console.log(`[TypeDetailView] Rendering with typeSlug: ${props.typeSlug}`);
 
 const typeSlugRef = computed(() => props.typeSlug);
-
-
-// --- Prefetching Function ---
-const prefetchBookDetails = (bookSlug: string) => {
-  if (!bookSlug) return;
-  // console.debug(`Prefetching book details for slug: ${bookSlug}`); // Optional: for debugging
-  queryClient.prefetchQuery({
-    // IMPORTANT: Query key must EXACTLY match the one used in useBookDetails
-    queryKey: ['book_detail', bookSlug],
-    // The function to fetch the data
-    queryFn: () => fetchBookBySlug(bookSlug),
-    // Optional: Keep data fresh for a short time after prefetching
-    staleTime: 60 * 1000, // 1 minute
-  });
-};
 
 // Fetch Type Details
 const {
@@ -92,11 +74,6 @@ watch(typeStatus, (newStatus) => {
 const typeName = computed(() => typeDetailsData.value?.name ?? '');
 const typeId = computed(() => typeDetailsData.value?.type_id ?? null);
 
-// Log typeId changes
-watch(typeId, (newId, oldId) => {
-  console.log(`%c[TypeDetailView] typeId changed from ${oldId} to ${newId}`, 'color: purple; font-weight: bold;');
-}, { immediate: true });
-
 // Fetch Books based on the computed typeId ref
 const {
   data: books,
@@ -106,20 +83,6 @@ const {
   status: booksStatus,
   isFetching: isFetchingBooks
 } = useBooksByType(typeId);
-
-// Log books query results reactively
-watch(booksStatus, (newStatus) => {
-  console.log(`[TypeDetailView] Books Status: ${newStatus}`);
-  if (newStatus === 'success') {
-    console.log(`[TypeDetailView] Books Data:`, books.value);
-  }
-  if (newStatus === 'error') {
-    console.error(`[TypeDetailView] Books Error:`, errorBooks.value?.message);
-  }
-});
-watch(isFetchingBooks, (fetching) => {
-  console.log(`[TypeDetailView] Books isFetching: ${fetching}`);
-});
 
 // Log the enabled state for the books query directly
 const isBooksQueryEnabled = computed(() => typeof typeId.value === 'number');

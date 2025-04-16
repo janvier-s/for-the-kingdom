@@ -8,8 +8,11 @@
         <router-link v-for="type in types" :key="type.type_id" :to="{
           name: 'type-detail',
           params: { testamentSlug: props.testamentSlug, typeSlug: type.slug },
-        }" class="type-link list-item-link" @mouseenter="prefetchTypeDetails(type.slug)"
-          @focus="prefetchTypeDetails(type.slug)">
+        }" class="type-link list-item-link" v-prefetch="{
+          queryKey: ['type_detail', type.slug],
+          queryFn: () => fetchTypeBySlug(type.slug),
+          staleTime: 60 * 1000
+        }">
           {{ type.name }}
         </router-link>
       </div>
@@ -23,7 +26,6 @@
 
 <script setup lang="ts">
 import { toRef } from 'vue';
-import { useQueryClient } from '@tanstack/vue-query';
 import { useTestamentTypes } from '@/composables/useBibleData';
 import { fetchTypeBySlug } from '@/services/apiService';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
@@ -35,27 +37,9 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-
-// Use toRef to pass a reactive reference to the composable
 const testamentIdRef = toRef(props, 'testamentId');
-
 const { data: types, isLoading, error } = useTestamentTypes(testamentIdRef);
 
-const queryClient = useQueryClient();
-
-
-// --- Prefetching Function ---
-const prefetchTypeDetails = (typeSlug: string) => {
-  if (!typeSlug) return;
-  // console.debug(`Prefetching type details for slug: ${typeSlug}`); // Optional
-  queryClient.prefetchQuery({
-    // IMPORTANT: Query key must EXACTLY match the one used in useTypeDetails
-    queryKey: ['type_detail', typeSlug],
-    queryFn: () => fetchTypeBySlug(typeSlug),
-    staleTime: 60 * 1000, // 1 minute
-  });
-  // Note: Only prefetching type details (name, id). Books are fetched based on ID later.
-};
 </script>
 
 <style scoped>

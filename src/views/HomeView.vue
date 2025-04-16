@@ -9,8 +9,11 @@
       <router-link v-for="testament in testaments" :key="testament.testament_id"
         :to="{ name: 'testament-detail', params: { testamentSlug: testament.slug } }" custom v-slot="{ navigate }">
         <div class="testament-section card" role="link" tabindex="0" @click="navigate" @keydown.enter="navigate"
-          @keydown.space.prevent="navigate" @mouseenter="prefetchTestamentDetails(testament.slug)"
-          @focus="prefetchTestamentDetails(testament.slug)">
+          @keydown.space.prevent="navigate" v-prefetch="{
+            queryKey: ['testament_detail', testament.slug],
+            queryFn: () => fetchTestamentBySlug(testament.slug),
+            staleTime: 60 * 1000
+          }">
           <h2>{{ testament.name }}</h2>
         </div>
       </router-link>
@@ -23,7 +26,6 @@
 </template>
 
 <script setup lang="ts">
-import { useQueryClient } from '@tanstack/vue-query';
 import { useTestaments } from '@/composables/useBibleData';
 import { fetchTestamentBySlug } from '@/services/apiService';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
@@ -37,21 +39,6 @@ const {
   error            // The actual error object (Ref<Error | null>)
   // isFetching,    // True during initial fetch AND background refetches (optional)
 } = useTestaments();
-
-const queryClient = useQueryClient(); // <-- Get Query Client instance
-
-// --- Prefetching Function ---
-const prefetchTestamentDetails = (testamentSlug: string) => {
-  if (!testamentSlug) return;
-  // console.debug(`Prefetching testament details for slug: ${testamentSlug}`); // Optional
-  queryClient.prefetchQuery({
-    // IMPORTANT: Query key must EXACTLY match the one used in useTestamentDetails
-    queryKey: ['testament_detail', testamentSlug],
-    queryFn: () => fetchTestamentBySlug(testamentSlug),
-    staleTime: 60 * 1000, // 1 minute
-  });
-  // Note: Only prefetching testament details (name, id). Types are fetched based on ID later.
-};
 
 </script>
 
