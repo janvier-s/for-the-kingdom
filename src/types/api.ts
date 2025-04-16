@@ -22,14 +22,14 @@ export interface TestamentTranslation {
   testaments?: Testament // Relation might be included
 }
 
-export interface BookType {
-  type_id: number
-  // Add other base type fields if needed
+export interface BookGenre {
+  genre_id: number
+  // Add other base genre fields if needed
 }
 
-export interface TypeTranslation {
-  type_translation_id: number // Assuming a primary key exists
-  type_id: number
+export interface GenreTranslation {
+  genre_translation_id: number // Assuming a primary key exists
+  genre_id: number
   lang_id: number
   name: string
   slug: string
@@ -38,14 +38,14 @@ export interface TypeTranslation {
 export interface Book {
   book_id: number
   testament_id: number
-  type_id: number | null
+  genre_id: number | null
   bible_order: number
   // Add other base book fields if needed
 }
 
-// Type for the structure returned when joining books and book_translations
+// Type for the structure returned when joining bible_books and bible_book_translations
 export interface BookWithTranslation extends Book {
-  book_translations: Array<{
+  bible_book_translations: Array<{
     book_translation_id: number // Assuming a primary key exists
     title: string
     abbr: string

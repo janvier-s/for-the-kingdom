@@ -1,12 +1,12 @@
-// src/views/TypeDetailView.vue
+//src/views/GenreDetailView.vue
 
 <template>
-  <div class="type-detail-view container">
+  <div class="genre-detail-view container">
     <header class="view-header">
-      <BaseLoadingIndicator v-if="isLoadingType" message="Loading type details..." />
-      <BaseErrorMessage v-if="isErrorType" :message="errorType?.message" />
-      <h1 v-if="!isLoadingType && !isErrorType && typeName">{{ typeName }}</h1>
-      <h1 v-if="!isLoadingType && !isErrorType && !typeName && !isLoadingType">Type Not Found</h1>
+      <BaseLoadingIndicator v-if="isLoadingGenre" message="Loading genre details..." />
+      <BaseErrorMessage v-if="isErrorGenre" :message="errorGenre?.message" />
+      <h1 v-if="!isLoadingGenre && !isErrorGenre && genreName">{{ genreName }}</h1>
+      <h1 v-if="!isLoadingGenre && !isErrorGenre && !genreName && !isLoadingGenre">Genre Not Found</h1>
     </header>
 
     <main>
@@ -18,7 +18,7 @@
           name: 'book-detail',
           params: {
             testamentSlug: props.testamentSlug,
-            typeSlug: props.typeSlug,
+            genreSlug: props.genreSlug,
             bookSlug: book.slug
           },
         }" class="book-link list-item-link" v-prefetch="createBookPrefetchOptions(book.slug)">
@@ -27,7 +27,7 @@
       </div>
 
       <p v-if="!isLoadingBooks && !isErrorBooks && books && books.length === 0" class="no-results">
-        No books found listed under this type ({{ typeName }}).
+        No books found listed under this genre ({{ genreName }}).
       </p>
     </main>
   </div>
@@ -35,46 +35,46 @@
 
 <script setup lang="ts">
 import { computed, type Ref, watch } from 'vue';
-import { useTypeDetails, useBooksByType } from '@/composables/useBibleData';
+import { useGenreDetails, useBooksByGenre } from '@/composables/useBibleData';
 import { createBookPrefetchOptions } from '@/utils/prefetchHelpers';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
 interface Props {
   testamentSlug: string;
-  typeSlug: string;
+  genreSlug: string;
 }
 const props = defineProps<Props>();
 
-console.log(`[TypeDetailView] Rendering with typeSlug: ${props.typeSlug}`);
+console.log(`[GenreDetailView] Rendering with genreSlug: ${props.genreSlug}`);
 
-const typeSlugRef = computed(() => props.typeSlug);
+const genreSlugRef = computed(() => props.genreSlug);
 
-// Fetch Type Details
+// Fetch Genre Details
 const {
-  data: typeDetailsData,
-  isLoading: isLoadingType,
-  isError: isErrorType,
-  error: errorType,
-  status: typeStatus
-} = useTypeDetails(typeSlugRef as Ref<string | undefined>);
+  data: genreDetailsData,
+  isLoading: isLoadingGenre,
+  isError: isErrorGenre,
+  error: errorGenre,
+  status: genreStatus
+} = useGenreDetails(genreSlugRef as Ref<string | undefined>);
 
-// Log type details query results reactively
-watch(typeStatus, (newStatus) => {
-  console.log(`[TypeDetailView] Type Details Status: ${newStatus}`);
+// Log genre details query results reactively
+watch(genreStatus, (newStatus) => {
+  console.log(`[GenreDetailView] Genre Details Status: ${newStatus}`);
   if (newStatus === 'success') {
-    console.log(`[TypeDetailView] Type Details Data:`, typeDetailsData.value);
+    console.log(`[GenreDetailView] Genre Details Data:`, genreDetailsData.value);
   }
   if (newStatus === 'error') {
-    console.error(`[TypeDetailView] Type Details Error:`, errorType.value?.message);
+    console.error(`[GenreDetailView] Genre Details Error:`, errorGenre.value?.message);
   }
 });
 
-// Recreate computed properties for type name and ID
-const typeName = computed(() => typeDetailsData.value?.name ?? '');
-const typeId = computed(() => typeDetailsData.value?.type_id ?? null);
+// Recreate computed properties for genre name and ID
+const genreName = computed(() => genreDetailsData.value?.name ?? '');
+const genreId = computed(() => genreDetailsData.value?.genre_id ?? null);
 
-// Fetch Books based on the computed typeId ref
+// Fetch Books based on the computed genreId ref
 const {
   data: books,
   isLoading: isLoadingBooks,
@@ -82,17 +82,17 @@ const {
   error: errorBooks,
   status: booksStatus,
   isFetching: isFetchingBooks
-} = useBooksByType(typeId);
+} = useBooksByGenre(genreId);
 
 // Log the enabled state for the books query directly
-const isBooksQueryEnabled = computed(() => typeof typeId.value === 'number');
+const isBooksQueryEnabled = computed(() => typeof genreId.value === 'number');
 watch(isBooksQueryEnabled, (enabled) => {
-  console.log(`%c[TypeDetailView] Is Books Query Enabled?: ${enabled}`, 'color: red; font-weight: bold;');
+  console.log(`%c[GenreDetailView] Is Books Query Enabled?: ${enabled}`, 'color: red; font-weight: bold;');
 }, { immediate: true });
 </script>
 
 <style scoped>
-.type-detail-view {
+.genre-detail-view {
   padding-top: var(--spacing-lg);
   padding-bottom: var(--spacing-lg);
 }

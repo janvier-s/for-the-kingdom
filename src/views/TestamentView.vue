@@ -8,8 +8,8 @@
     </header>
 
     <main>
-      <TestamentTypeList v-if="!isLoading && !isError && testamentId && props.testamentSlug" :testament-id="testamentId"
-        :testament-slug="props.testamentSlug" />
+      <TestamentGenreList v-if="!isLoading && !isError && testamentId && props.testamentSlug"
+        :testament-id="testamentId" :testament-slug="props.testamentSlug" />
       <p v-if="!isLoading && !isError && !testamentId" class="no-results">
         Could not load details for this testament.
       </p>
@@ -21,7 +21,7 @@
 import { computed, type Ref } from 'vue';
 // No longer need useRoute if slug comes from props
 import { useTestamentDetails } from '@/composables/useBibleData';
-import TestamentTypeList from '@/components/TestamentTypeList.vue';
+import TestamentGenreList from '@/components/TestamentGenreList.vue';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 

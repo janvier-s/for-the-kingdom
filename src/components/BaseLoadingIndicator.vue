@@ -31,9 +31,7 @@ withDefaults(defineProps<Props>(), {
 /* Basic Spinner Example */
 .spinner {
     border: 4px solid var(--bg-secondary);
-    /* Light grey */
     border-top: 4px solid var(--text-link);
-    /* Blue */
     border-radius: 50%;
     width: 30px;
     height: 30px;

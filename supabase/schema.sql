@@ -12,24 +12,24 @@ CREATE TABLE public.testaments (
   CONSTRAINT fk_testaments_lang FOREIGN KEY (lang_id) REFERENCES public.languages(lang_id) ON DELETE RESTRICT
 );
 
-CREATE TABLE public.types (
-  type_id SERIAL PRIMARY KEY,
+CREATE TABLE public.genres (
+  genre_id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   lang_id BIGINT NULL, -- Changed to BIGINT to match languages.lang_id
-  CONSTRAINT fk_types_lang FOREIGN KEY (lang_id) REFERENCES public.languages(lang_id) ON DELETE RESTRICT
+  CONSTRAINT fk_genres_lang FOREIGN KEY (lang_id) REFERENCES public.languages(lang_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE public.books (
   book_id SERIAL PRIMARY KEY,
   testament_id INTEGER NOT NULL,
-  type_id INTEGER NOT NULL,
+  genre_id INTEGER NOT NULL,
   abbr TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
   bible_order SMALLINT NOT NULL CHECK (bible_order > 0),
   lang_id BIGINT NULL,  -- Changed to BIGINT to match languages.lang_id
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT books_testament_id_fkey FOREIGN KEY (testament_id) REFERENCES public.testaments(testament_id) ON DELETE RESTRICT,
-  CONSTRAINT books_type_id_fkey FOREIGN KEY (type_id) REFERENCES public.types(type_id) ON DELETE RESTRICT,
+  CONSTRAINT books_genre_id_fkey FOREIGN KEY (genre_id) REFERENCES public.genres(genre_id) ON DELETE RESTRICT,
   CONSTRAINT fk_books_lang FOREIGN KEY (lang_id) REFERENCES public.languages(lang_id) ON DELETE RESTRICT
 );
 

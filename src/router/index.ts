@@ -16,7 +16,7 @@ import { fetchTestamentBySlug } from '@/services/apiService' // Use the service 
 const RouteNames = {
   HOME: 'home',
   TESTAMENT_DETAIL: 'testament-detail',
-  TYPE_DETAIL: 'type-detail',
+  GENRE_DETAIL: 'genre-detail',
   BOOK_DETAIL: 'book-detail',
   NOT_FOUND: 'not-found',
 } as const // Use 'as const' for stricter typing
@@ -70,15 +70,15 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     // Nested structure makes sense semantically
-    path: '/:testamentSlug/:typeSlug',
-    name: RouteNames.TYPE_DETAIL,
-    component: () => import('@/views/TypeDetailView.vue'),
+    path: '/:testamentSlug/:genreSlug',
+    name: RouteNames.GENRE_DETAIL,
+    component: () => import('@/views/GenreDetailView.vue'),
     props: true,
-    // Optional: Add a beforeEnter guard similar to testament if needed for type slug validation
+    // Optional: Add a beforeEnter guard similar to testament if needed for genre slug validation
   },
   {
     // Keep the full path for clarity, even if nested logically
-    path: '/:testamentSlug/:typeSlug/:bookSlug',
+    path: '/:testamentSlug/:genreSlug/:bookSlug',
     name: RouteNames.BOOK_DETAIL,
     component: () => import('@/views/BookDetailView.vue'),
     props: true,

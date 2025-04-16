@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/vue-query'
 import * as apiService from '@/services/apiService'
 import type {
   TestamentTranslation,
-  TypeTranslation,
+  GenreTranslation,
   BookSummary,
   Chapter,
   Version,
@@ -51,13 +51,13 @@ export function useTestamentDetails(testamentSlugRef: Ref<string | undefined>) {
 }
 
 /**
- * Fetches and manages the list of book types for a given testament ID.
+ * Fetches and manages the list of book genres for a given testament ID.
  * @param testamentIdRef - A Ref containing the testament ID.
- * @returns Vue Query result object for testament types.
+ * @returns Vue Query result object for testament genres.
  */
-export function useTestamentTypes(testamentIdRef: Ref<number | null>) {
+export function useTestamentGenres(testamentIdRef: Ref<number | null>) {
   return useQuery({
-    queryKey: ['testament_types', testamentIdRef], // Key includes dependency
+    queryKey: ['testament_genres', testamentIdRef], // Key includes dependency
     queryFn: () => {
       const id = testamentIdRef.value
       if (id === null) {
@@ -66,7 +66,7 @@ export function useTestamentTypes(testamentIdRef: Ref<number | null>) {
         throw new Error('Testament ID is required but missing.')
         // return Promise.resolve([]); // Or return empty array
       }
-      return apiService.fetchTypesForTestament(id)
+      return apiService.fetchGenresForTestament(id)
     },
     // Only run the query if the ID is a valid number
     enabled: computed(() => typeof testamentIdRef.value === 'number'),
@@ -74,40 +74,40 @@ export function useTestamentTypes(testamentIdRef: Ref<number | null>) {
 }
 
 /**
- * Fetches and manages details for a specific book type based on its slug.
- * @param typeSlugRef - A Ref containing the type slug.
- * @returns Vue Query result object for type details.
+ * Fetches and manages details for a specific genre based on its slug.
+ * @param genreSlugRef - A Ref containing the genre slug.
+ * @returns Vue Query result object for genre details.
  */
-export function useTypeDetails(typeSlugRef: Ref<string | undefined>) {
+export function useGenreDetails(genreSlugRef: Ref<string | undefined>) {
   return useQuery({
-    queryKey: ['type_detail', typeSlugRef],
+    queryKey: ['genre_detail', genreSlugRef],
     queryFn: () => {
-      const slug = typeSlugRef.value
+      const slug = genreSlugRef.value
       if (!slug) {
-        throw new Error('Type slug is required but missing.')
+        throw new Error('Genre slug is required but missing.')
       }
-      return apiService.fetchTypeBySlug(slug)
+      return apiService.fetchGenreBySlug(slug)
     },
-    enabled: computed(() => !!typeSlugRef.value),
+    enabled: computed(() => !!genreSlugRef.value),
   })
 }
 
 /**
- * Fetches and manages the list of books for a given type ID.
- * @param typeIdRef - A Ref containing the type ID.
+ * Fetches and manages the list of books for a given genre ID.
+ * @param genreIdRef - A Ref containing the genre ID.
  * @returns Vue Query result object for books.
  */
-export function useBooksByType(typeIdRef: Ref<number | null>) {
+export function useBooksByGenre(genreIdRef: Ref<number | null>) {
   return useQuery({
-    queryKey: ['books_by_type', typeIdRef],
+    queryKey: ['books_by_genre', genreIdRef],
     queryFn: () => {
-      const id = typeIdRef.value
+      const id = genreIdRef.value
       if (id === null) {
-        throw new Error('Type ID is required but missing.')
+        throw new Error('Genre ID is required but missing.')
       }
-      return apiService.fetchBooksByType(id)
+      return apiService.fetchBooksByGenre(id)
     },
-    enabled: computed(() => typeof typeIdRef.value === 'number'),
+    enabled: computed(() => typeof genreIdRef.value === 'number'),
   })
 }
 
