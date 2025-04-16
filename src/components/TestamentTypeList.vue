@@ -43,11 +43,6 @@ const { data: types, isLoading, error } = useTestamentTypes(testamentIdRef);
   padding-top: var(--spacing-lg);
 }
 
-.type-link {
-  /* Styles are inherited from list-item-link in main.css */
-  /* Add specific overrides here if needed */
-}
-
 .no-results {
   text-align: center;
   color: var(--text-secondary);

@@ -2,35 +2,36 @@
   <div class="book-detail-view container">
     <header class="view-header book-header">
       <BaseLoadingIndicator v-if="isLoadingBook" message="Loading book details..." />
-      <BaseErrorMessage :message="bookError" />
-      <template v-if="!isLoadingBook && !bookError && bookTitle">
+      <BaseErrorMessage v-if="isErrorBook" :message="errorBook?.message" />
+
+      <template v-if="!isLoadingBook && !isErrorBook && bookTitle">
         <h1>{{ bookTitle }}</h1>
-        <!-- Version Selector -->
-        <div v-if="versions.length > 1 && !isLoadingVersions" class="version-selector">
+
+        <BaseLoadingIndicator v-if="isLoadingVersions" message="Loading versions..." />
+        <BaseErrorMessage v-if="isErrorVersions" :message="errorVersions?.message" />
+        <div v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length > 1" class="version-selector">
           <label for="versionSelect">Version:</label>
           <select id="versionSelect" v-model="selectedVersionId">
+            <option :value="null" disabled>Select Version</option>
             <option v-for="version in versions" :key="version.version_id" :value="version.version_id">
               {{ version.abbr }} ({{ version.full_name }})
             </option>
           </select>
         </div>
-        <BaseLoadingIndicator v-if="isLoadingVersions" message="Loading versions..." />
-        <BaseErrorMessage :message="versionsError" />
-        <p v-if="!isLoadingVersions && versions.length === 1" class="single-version">
+        <p v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length === 1" class="single-version">
           Version: {{ versions[0].abbr }}
         </p>
-        <p v-if="!isLoadingVersions && versions.length === 0 && !versionsError" class="no-results">
+        <p v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length === 0" class="no-results">
           No Bible versions found.
         </p>
       </template>
-      <h1 v-if="!isLoadingBook && !bookError && !bookTitle">Book Not Found</h1>
+      <h1 v-if="!isLoadingBook && !isErrorBook && !bookTitle">Book Not Found</h1>
     </header>
 
     <main v-if="bookId && selectedVersionId">
-      <!-- Chapter Navigation -->
       <BaseLoadingIndicator v-if="isLoadingChapters" message="Loading chapters..." />
-      <BaseErrorMessage :message="chaptersError" />
-      <nav v-if="chapters.length > 1 && !isLoadingChapters" class="chapter-nav">
+      <BaseErrorMessage v-if="isErrorChapters" :message="errorChapters?.message" />
+      <nav v-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length > 1" class="chapter-nav">
         <button @click="changeChapter(-1)" :disabled="selectedChapterNumber <= 1" aria-label="Previous Chapter">
           < Prev </button>
             <span role="status" aria-live="polite">
@@ -41,41 +42,46 @@
               Next >
             </button>
       </nav>
-      <h2 v-else-if="chapters.length === 1 && !isLoadingChapters" class="single-chapter-heading">
+      <h2 v-else-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length === 1"
+        class="single-chapter-heading">
         Chapter {{ selectedChapterNumber }}
       </h2>
-      <p v-if="!isLoadingChapters && chapters.length === 0 && !chaptersError" class="no-results">
+      <p v-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length === 0" class="no-results">
         No chapters found for this book.
       </p>
 
-      <!-- Verse Content -->
-      <div class="content-area">
+      <div v-if="selectedChapterId" class="content-area">
         <BaseLoadingIndicator v-if="isLoadingVerses" message="Loading content..." />
-        <BaseErrorMessage :message="versesError" />
-        <div v-if="!isLoadingVerses && !versesError && verses.length > 0" class="verses-container">
+        <BaseErrorMessage v-if="isErrorVerses" :message="errorVerses?.message" />
+        <div v-if="!isLoadingVerses && !isErrorVerses && verses && verses.length > 0" class="verses-container">
           <p v-for="verse in verses" :key="verse.verse_id" class="verse">
             <sup :id="`v${selectedChapterNumber}-${verse.verse_number}`">{{ verse.verse_number }}</sup>
             {{ verse.verse_text }}
           </p>
         </div>
-        <p v-if="!isLoadingVerses && !versesError && verses.length === 0 && chapters.length > 0" class="no-results">
+        <p v-if="!isLoadingVerses && !isErrorVerses && verses && verses.length === 0 && chapters && chapters.length > 0"
+          class="no-results">
           No verses found for Chapter {{ selectedChapterNumber }} in the selected version.
         </p>
       </div>
+      <div v-else-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length > 0">
+        <p class="no-results">Select a chapter.</p>
+      </div>
 
     </main>
-    <div v-else-if="!isLoadingBook && !bookError && !bookId">
+    <div v-else-if="!isLoadingBook && !isErrorBook && !bookId">
       <p class="no-results">Could not determine book details to load content.</p>
     </div>
-    <div v-else-if="!isLoadingVersions && !versionsError && !selectedVersionId">
+    <div v-else-if="!isLoadingVersions && !isErrorVersions && !selectedVersionId && versions && versions.length > 0">
       <p class="no-results">Please select a Bible version to view content.</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, watch, type Ref } from 'vue';
+import { useDelayedTrueState } from '@/composables/useDelayedState';
+// No longer need useRoute if slug comes from props
 import {
   useBookDetails,
   useBibleVersions,
@@ -84,103 +90,127 @@ import {
 } from '@/composables/useBibleData';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
-import type { Chapter } from '@/types';
+import type { Chapter, Version } from '@/types';
 
 interface Props {
   bookSlug: string;
-  // testamentSlug and typeSlug might be needed if you build breadcrumbs, but not for core logic
-  // testamentSlug?: string;
-  // typeSlug?: string;
 }
 const props = defineProps<Props>();
 
-const route = useRoute(); // Access route if needed for query params, etc.
-
 const bookSlugRef = computed(() => props.bookSlug);
 
-// --- State Refs ---
+// --- Local State Refs ---
 const selectedVersionId = ref<number | null>(null);
 const selectedChapterId = ref<number | null>(null);
 const selectedChapterNumber = ref<number>(1); // Default to chapter 1
 
-// --- Composables ---
+// --- Composables (Vue Query) ---
 
 // 1. Fetch Book Details (Title, ID) based on Slug
 const {
-  isLoading: isLoadingBook,
-  error: bookError,
-  bookTitle,
-  bookId // Reactive ref: number | null
-} = useBookDetails(bookSlugRef);
+  data: bookDetailsData, // Raw data { title, book_id } | null
+  isLoading: isLoadingBookRaw,
+  isError: isErrorBook,
+  error: errorBook
+} = useBookDetails(bookSlugRef as Ref<string | undefined>);
 
-// 2. Fetch Available Versions (runs once bookId is potentially available, but independent)
-const {
-  data: versions,
-  isLoading: isLoadingVersions,
-  error: versionsError
-} = useBibleVersions(); // Fetches automatically
+// Recreate computed properties for book title and ID
+const bookTitle = computed(() => bookDetailsData.value?.title ?? '');
+const bookId = computed(() => bookDetailsData.value?.book_id ?? null); // Ref<number | null>
 
-// 3. Fetch Chapters once Book ID is known
+// 2. Fetch Available Versions (runs automatically via Vue Query)
 const {
-  data: chapters,
-  isLoading: isLoadingChapters,
-  error: chaptersError
-} = useChapters(bookId); // Reacts to bookId changes
+  data: versions, // Ref<Version[] | undefined>
+  isLoading: isLoadingVersionsRaw,
+  isError: isErrorVersions,
+  error: errorVersions
+} = useBibleVersions();
 
-// 4. Fetch Verses once Chapter ID and Version ID are known
+// 3. Fetch Chapters (enabled when bookId is valid)
 const {
-  data: verses,
-  isLoading: isLoadingVerses,
-  error: versesError,
-  fetchData: fetchVerses // Expose fetch function
-} = useVerses(selectedChapterId, selectedVersionId); // Reacts to changes in these refs
+  data: chapters, // Ref<Chapter[] | undefined>
+  isLoading: isLoadingChaptersRaw,
+  isError: isErrorChapters,
+  error: errorChapters
+} = useChapters(bookId); // Pass reactive bookId ref
+
+// 4. Fetch Verses (enabled when chapterId and versionId are valid)
+const {
+  data: verses, // Ref<Verse[] | undefined>
+  isLoading: isLoadingVersesRaw,
+  isError: isErrorVerses,
+  error: errorVerses
+  // refetch: refetchVerses // Can get refetch function if needed
+} = useVerses(selectedChapterId, selectedVersionId); // Pass local state refs
+
+// --- Delayed Loaders ---
+const isLoadingBook = useDelayedTrueState(isLoadingBookRaw, 750); // 750ms delay
+const isLoadingVersions = useDelayedTrueState(isLoadingVersionsRaw, 750);
+const isLoadingChapters = useDelayedTrueState(isLoadingChaptersRaw, 750);
+const isLoadingVerses = useDelayedTrueState(isLoadingVersesRaw, 750);
 
 // --- Watchers and Logic ---
 
-// Set default version once versions load and book is loaded
-watch([versions, bookId, isLoadingVersions], ([newVersions, newBookId, loadingVersions]) => {
-  if (!loadingVersions && newBookId && newVersions.length > 0 && !selectedVersionId.value) {
-    // Prioritize LSG, fallback to the first available version
-    const defaultVersion = newVersions.find((v) => v.abbr === 'LSG') || newVersions[0];
-    if (defaultVersion) {
-      console.debug(`Setting default version: ${defaultVersion.abbr} (ID: ${defaultVersion.version_id})`);
-      selectedVersionId.value = defaultVersion.version_id;
+// Set default version once versions load and are available
+watch(versions, (newVersions) => {
+  if (newVersions && newVersions.length > 0 && !selectedVersionId.value) {
+    // If only one version, select it automatically
+    if (newVersions.length === 1) {
+      selectedVersionId.value = newVersions[0].version_id;
+      console.debug(`Auto-selected single version: ${newVersions[0].abbr}`);
     } else {
-      console.warn("No suitable default version found.");
+      // Prioritize LSG if multiple versions exist
+      const defaultVersion = newVersions.find((v) => v.abbr === 'LSG') || null; // Don't default select if LSG not found
+      if (defaultVersion) {
+        // selectedVersionId.value = defaultVersion.version_id; // Optional: auto-select LSG
+        console.debug(`Default version LSG found (ID: ${defaultVersion.version_id}), but not auto-selecting.`);
+      } else {
+        console.warn("LSG version not found among available versions.");
+      }
     }
   }
-}, { immediate: true }); // Check immediately
+}, { immediate: true }); // Check immediately when versions data arrives
 
-// Set initial chapter once chapters load
-watch([chapters, isLoadingChapters], ([newChapters, loadingChapters]) => {
-  if (!loadingChapters && newChapters.length > 0 && !selectedChapterId.value) {
-    // Find chapter matching selectedChapterNumber (usually 1 initially)
+// Set initial/current chapter once chapters load
+watch(chapters, (newChapters) => {
+  if (newChapters && newChapters.length > 0) {
+    // Find chapter matching selectedChapterNumber OR default to first chapter
     const targetChapter = newChapters.find(ch => ch.chapter_number === selectedChapterNumber.value) || newChapters[0];
-    if (targetChapter) {
-      console.debug(`Setting initial chapter: ${targetChapter.chapter_number} (ID: ${targetChapter.chapter_id})`);
+    if (targetChapter && targetChapter.chapter_id !== selectedChapterId.value) {
+      console.debug(`Setting current chapter: ${targetChapter.chapter_number} (ID: ${targetChapter.chapter_id})`);
       selectedChapterId.value = targetChapter.chapter_id;
       selectedChapterNumber.value = targetChapter.chapter_number; // Ensure consistency
-    } else {
-      console.warn("Could not find initial chapter.");
+    } else if (!targetChapter) {
+      console.warn("Could not find target chapter.");
+      selectedChapterId.value = null; // Reset if no chapter found
     }
   }
-  // Reset chapter if chapters become empty (e.g., book changes)
-  else if (!loadingChapters && newChapters.length === 0) {
+  // Reset chapter if chapters become empty/undefined (e.g., book changes)
+  else if (!newChapters || newChapters.length === 0) {
     selectedChapterId.value = null;
     selectedChapterNumber.value = 1; // Reset to default
   }
-}, { immediate: true });
+}, { immediate: true }); // Check immediately when chapters data arrives
+
+// Reset chapter selection if book changes
+watch(bookId, () => {
+  console.debug("Book ID changed, resetting chapter selection.");
+  selectedChapterId.value = null;
+  selectedChapterNumber.value = 1;
+  // Verses query will become disabled automatically if selectedChapterId is null
+});
 
 // Function to change chapter
 const changeChapter = (direction: 1 | -1) => {
-  if (isLoadingChapters.value || chapters.value.length <= 1) return;
+  if (!chapters.value || chapters.value.length <= 1) return;
 
   const currentIdx = chapters.value.findIndex(ch => ch.chapter_id === selectedChapterId.value);
+  // Handle case where current chapter isn't found (shouldn't happen often with watcher)
   if (currentIdx === -1 && chapters.value.length > 0) {
-    // Safety net: if current chapter not found, reset to first
-    selectedChapterId.value = chapters.value[0].chapter_id;
-    selectedChapterNumber.value = chapters.value[0].chapter_number;
-    console.warn("Current chapter ID not found in list, resetting to first chapter.");
+    const newChapter = chapters.value[0];
+    console.warn("Current chapter ID not found, resetting to first chapter.");
+    selectedChapterId.value = newChapter.chapter_id;
+    selectedChapterNumber.value = newChapter.chapter_number;
     return;
   }
 
@@ -189,9 +219,9 @@ const changeChapter = (direction: 1 | -1) => {
   if (newIdx >= 0 && newIdx < chapters.value.length) {
     const newChapter = chapters.value[newIdx];
     console.debug(`Changing chapter to: ${newChapter.chapter_number} (ID: ${newChapter.chapter_id})`);
+    // Update local state refs - Vue Query watcher on useVerses will trigger refetch
     selectedChapterId.value = newChapter.chapter_id;
     selectedChapterNumber.value = newChapter.chapter_number;
-    // Verses will refetch automatically due to the watcher in useVerses
   }
 };
 

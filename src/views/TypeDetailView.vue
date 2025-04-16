@@ -1,71 +1,112 @@
+// src/views/TypeDetailView.vue
+
 <template>
   <div class="type-detail-view container">
     <header class="view-header">
       <BaseLoadingIndicator v-if="isLoadingType" message="Loading type details..." />
-      <BaseErrorMessage :message="typeError" />
-      <h1 v-if="!isLoadingType && !typeError && typeName">{{ typeName }}</h1>
-      <h1 v-if="!isLoadingType && !typeError && !typeName">Type Not Found</h1>
+      <BaseErrorMessage v-if="isErrorType" :message="errorType?.message" />
+      <h1 v-if="!isLoadingType && !isErrorType && typeName">{{ typeName }}</h1>
+      <h1 v-if="!isLoadingType && !isErrorType && !typeName && !isLoadingType">Type Not Found</h1>
     </header>
 
-    <main v-if="typeId && !isLoadingType && !typeError">
-      <h2>Books in this Category</h2>
+    <main>
       <BaseLoadingIndicator v-if="isLoadingBooks" message="Loading books..." />
-      <BaseErrorMessage :message="booksError" />
+      <BaseErrorMessage v-if="isErrorBooks" :message="errorBooks?.message" />
 
-      <ul v-if="!isLoadingBooks && !booksError && books.length > 0" class="book-list">
-        <li v-for="book in books" :key="book.book_id">
-          <router-link :to="{
-            name: 'book-detail', // Use correct route name
-            params: {
-              // Pass slugs through for URL structure consistency
-              testamentSlug: props.testamentSlug,
-              typeSlug: props.typeSlug,
-              bookSlug: book.slug,
-            },
-          }" class="list-item-link">
-            {{ book.title }}
-          </router-link>
-        </li>
-      </ul>
-      <p v-if="!isLoadingBooks && !booksError && books.length === 0" class="no-results">
-        No books found for this type in the selected language.
+      <div v-if="!isLoadingBooks && !isErrorBooks && books && books.length > 0" class="book-list">
+        <router-link v-for="book in books" :key="book.book_id" :to="{
+          name: 'book-detail', // Use the correct route name for books
+          params: {
+            testamentSlug: props.testamentSlug, // Pass testament slug through
+            typeSlug: props.typeSlug,           // Pass type slug through
+            bookSlug: book.slug                 // Use the book's specific slug
+          },
+        }" class="book-link list-item-link">
+          {{ book.title }}
+        </router-link>
+      </div>
+
+      <p v-if="!isLoadingBooks && !isErrorBooks && books && books.length === 0" class="no-results">
+        No books found listed under this type ({{ typeName }}).
       </p>
     </main>
-    <div v-else-if="!isLoadingType && !typeError">
-      <p class="no-results">Could not determine type details to load books.</p>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, type Ref, watch } from 'vue';
 import { useTypeDetails, useBooksByType } from '@/composables/useBibleData';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
 interface Props {
-  testamentSlug: string; // Passed through for linking back or context
+  testamentSlug: string;
   typeSlug: string;
 }
 const props = defineProps<Props>();
+
+console.log(`[TypeDetailView] Rendering with typeSlug: ${props.typeSlug}`);
 
 const typeSlugRef = computed(() => props.typeSlug);
 
 // Fetch Type Details
 const {
+  data: typeDetailsData,
   isLoading: isLoadingType,
-  error: typeError,
-  typeName,
-  typeId // Reactive ref containing the type ID
-} = useTypeDetails(typeSlugRef);
+  isError: isErrorType,
+  error: errorType,
+  status: typeStatus
+} = useTypeDetails(typeSlugRef as Ref<string | undefined>);
 
-// Fetch Books based on the fetched Type ID
+// Log type details query results reactively
+watch(typeStatus, (newStatus) => {
+  console.log(`[TypeDetailView] Type Details Status: ${newStatus}`);
+  if (newStatus === 'success') {
+    console.log(`[TypeDetailView] Type Details Data:`, typeDetailsData.value);
+  }
+  if (newStatus === 'error') {
+    console.error(`[TypeDetailView] Type Details Error:`, errorType.value?.message);
+  }
+});
+
+// Recreate computed properties for type name and ID
+const typeName = computed(() => typeDetailsData.value?.name ?? '');
+const typeId = computed(() => typeDetailsData.value?.type_id ?? null);
+
+// Log typeId changes
+watch(typeId, (newId, oldId) => {
+  console.log(`%c[TypeDetailView] typeId changed from ${oldId} to ${newId}`, 'color: purple; font-weight: bold;');
+}, { immediate: true });
+
+// Fetch Books based on the computed typeId ref
 const {
   data: books,
   isLoading: isLoadingBooks,
-  error: booksError
-} = useBooksByType(typeId); // Pass the reactive typeId ref here
+  isError: isErrorBooks,
+  error: errorBooks,
+  status: booksStatus,
+  isFetching: isFetchingBooks
+} = useBooksByType(typeId);
 
+// Log books query results reactively
+watch(booksStatus, (newStatus) => {
+  console.log(`[TypeDetailView] Books Status: ${newStatus}`);
+  if (newStatus === 'success') {
+    console.log(`[TypeDetailView] Books Data:`, books.value);
+  }
+  if (newStatus === 'error') {
+    console.error(`[TypeDetailView] Books Error:`, errorBooks.value?.message);
+  }
+});
+watch(isFetchingBooks, (fetching) => {
+  console.log(`[TypeDetailView] Books isFetching: ${fetching}`);
+});
+
+// Log the enabled state for the books query directly
+const isBooksQueryEnabled = computed(() => typeof typeId.value === 'number');
+watch(isBooksQueryEnabled, (enabled) => {
+  console.log(`%c[TypeDetailView] Is Books Query Enabled?: ${enabled}`, 'color: red; font-weight: bold;');
+}, { immediate: true });
 </script>
 
 <style scoped>
@@ -74,32 +115,13 @@ const {
   padding-bottom: var(--spacing-lg);
 }
 
-/* view-header styles from main.css */
-
 main {
   margin-top: var(--spacing-lg);
 }
 
-main h2 {
-  font-size: 1.3rem;
-  color: var(--text-secondary);
-  text-align: center;
-  margin-bottom: var(--spacing-lg);
-  font-weight: 500;
-}
-
 .book-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  /* Remove default ul margin */
+  margin-top: var(--spacing-md);
 }
-
-.book-list li {
-  /* list-item-link handles margin-bottom */
-}
-
-/* list-item-link styles from main.css */
 
 .no-results {
   text-align: center;

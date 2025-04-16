@@ -3,13 +3,11 @@
     <h1>Testaments de la Bible</h1>
 
     <BaseLoadingIndicator v-if="isLoading" message="Loading testaments..." />
-    <BaseErrorMessage :message="error" />
+    <BaseErrorMessage v-if="isError" :message="error?.message" />
 
-    <section v-if="!isLoading && !error && testaments.length > 0" class="testament-sections">
-      <!-- Use router-link for semantic navigation -->
+    <section v-if="!isLoading && !isError && testaments && testaments.length > 0" class="testament-sections">
       <router-link v-for="testament in testaments" :key="testament.testament_id"
-        :to="{ name: 'testament-detail', params: { testamentSlug: testament.slug } }" class="testament-section-link"
-        custom v-slot="{ navigate }">
+        :to="{ name: 'testament-detail', params: { testamentSlug: testament.slug } }" custom v-slot="{ navigate }">
         <div class="testament-section card" role="link" tabindex="0" @click="navigate" @keydown.enter="navigate"
           @keydown.space.prevent="navigate">
           <h2>{{ testament.name }}</h2>
@@ -17,23 +15,25 @@
       </router-link>
     </section>
 
-    <p v-if="!isLoading && !error && testaments.length === 0" class="no-results">
+    <p v-if="!isLoading && !isError && testaments && testaments.length === 0" class="no-results">
       No testaments found in the database for the selected language.
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useTestaments } from '@/composables/useBibleData'; // <--- Import
+import { useTestaments } from '@/composables/useBibleData';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
-console.log('!!!!!! [HomeView] <script setup> EXECUTING !!!!!!'); // <--- ADD THIS LOG
-
-const { data: testaments, isLoading, error } = useTestaments(); // <--- Invocation
-
-console.log('!!!!!! [HomeView] useTestaments() INVOKED !!!!!!'); // <--- ADD THIS LOG
-console.log(`[HomeView] Initial state - isLoading: ${isLoading.value}, error: ${error.value}, testaments:`, testaments.value); // <--- ADD THIS LOG
+// useQuery returns specific properties
+const {
+  data: testaments, // Access data via the 'data' ref
+  isLoading,       // True during initial fetch when no data is cached yet
+  isError,         // Boolean flag for error state
+  error            // The actual error object (Ref<Error | null>)
+  // isFetching,    // True during initial fetch AND background refetches (optional)
+} = useTestaments();
 
 </script>
 

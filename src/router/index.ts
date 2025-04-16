@@ -28,7 +28,7 @@ const routes: Array<RouteRecordRaw> = [
     component: HomeView,
   },
   {
-    path: '/testament/:testamentSlug', // More descriptive path segment
+    path: '/:testamentSlug', // More descriptive path segment
     name: RouteNames.TESTAMENT_DETAIL,
     // Lazy load view components for better initial load performance
     component: () => import('@/views/TestamentView.vue'),
@@ -70,7 +70,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     // Nested structure makes sense semantically
-    path: '/testament/:testamentSlug/type/:typeSlug',
+    path: '/:testamentSlug/:typeSlug',
     name: RouteNames.TYPE_DETAIL,
     component: () => import('@/views/TypeDetailView.vue'),
     props: true,
@@ -78,7 +78,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     // Keep the full path for clarity, even if nested logically
-    path: '/testament/:testamentSlug/type/:typeSlug/book/:bookSlug',
+    path: '/:testamentSlug/:typeSlug/book/:bookSlug',
     name: RouteNames.BOOK_DETAIL,
     component: () => import('@/views/BookDetailView.vue'),
     props: true,

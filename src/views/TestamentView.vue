@@ -2,15 +2,15 @@
   <div class="testament-view container">
     <header class="view-header">
       <BaseLoadingIndicator v-if="isLoading" message="Loading Testament..." />
-      <BaseErrorMessage :message="error" />
-      <h1 v-if="!isLoading && !error && testamentName">{{ testamentName }}</h1>
-      <h1 v-if="!isLoading && !error && !testamentName">Testament Not Found</h1>
+      <BaseErrorMessage v-if="isError" :message="error?.message" />
+      <h1 v-if="!isLoading && !isError && testamentName">{{ testamentName }}</h1>
+      <h1 v-if="!isLoading && !isError && !testamentName">Testament Not Found</h1>
     </header>
 
     <main>
-      <TestamentTypeList v-if="testamentId && props.testamentSlug" :testament-id="testamentId"
+      <TestamentTypeList v-if="!isLoading && !isError && testamentId && props.testamentSlug" :testament-id="testamentId"
         :testament-slug="props.testamentSlug" />
-      <p v-if="!isLoading && !error && !testamentId" class="no-results">
+      <p v-if="!isLoading && !isError && !testamentId" class="no-results">
         Could not load details for this testament.
       </p>
     </main>
@@ -18,8 +18,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, type Ref } from 'vue';
+// No longer need useRoute if slug comes from props
 import { useTestamentDetails } from '@/composables/useBibleData';
 import TestamentTypeList from '@/components/TestamentTypeList.vue';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
@@ -30,16 +30,20 @@ interface Props {
 }
 const props = defineProps<Props>();
 
-// Use computed for reactive prop access
+// Use computed for reactive prop access passed to useQuery key
 const slugRef = computed(() => props.testamentSlug);
 
+// Get Vue Query result object
 const {
-  data: testamentDetails,
+  data: testamentDetails, // The raw data object { name, testament_id } | null
   isLoading,
-  error,
-  testamentName,
-  testamentId
-} = useTestamentDetails(slugRef);
+  isError,
+  error
+} = useTestamentDetails(slugRef as Ref<string | undefined>); // Cast needed if prop isn't optional
+
+// Recreate computed properties based on the data returned by useQuery
+const testamentName = computed(() => testamentDetails.value?.name ?? '');
+const testamentId = computed(() => testamentDetails.value?.testament_id ?? null);
 
 </script>
 

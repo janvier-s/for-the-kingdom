@@ -1,26 +1,20 @@
 <template>
     <div id="app-wrapper">
         <header class="app-header">
-            <!-- Navigation Links (Example) -->
             <nav>
                 <router-link :to="{ name: 'home' }">Home</router-link>
-                <!-- Add other global navigation if needed -->
             </nav>
-            <!-- Auth Status/Actions (Example using composable) -->
             <div class="auth-section">
                 <BaseLoadingIndicator v-if="isAuthLoading" message="Auth..." />
                 <BaseErrorMessage :message="authError" />
                 <span v-if="isLoggedIn && user">Welcome, {{ user.email }}!</span>
                 <button v-if="isLoggedIn" @click="handleSignOut">Sign Out</button>
-                <!-- Add Sign In/Sign Up buttons/links here if needed -->
             </div>
         </header>
 
         <main class="app-main">
             <router-view v-slot="{ Component, route }">
-                <transition name="fade" mode="out-in">
-                    <component :is="Component" :key="route.path" />
-                </transition>
+                <component :is="Component" :key="route.path" />
             </router-view>
         </main>
 
@@ -75,7 +69,6 @@ const handleSignOut = async () => {
     flex-direction: column;
     min-height: 100vh;
     background-color: var(--bg-primary);
-    /* Ensure base background */
 }
 
 .app-header {
@@ -84,10 +77,8 @@ const handleSignOut = async () => {
     border-bottom: 1px solid var(--border-divider);
     display: flex;
     justify-content: space-between;
-    /* Space out nav and auth */
     align-items: center;
     flex-wrap: wrap;
-    /* Allow wrapping on smaller screens */
     gap: var(--spacing-md);
 }
 
@@ -119,7 +110,6 @@ const handleSignOut = async () => {
 .auth-section button {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: 0.85rem;
-    /* Add button styles or use a base button component */
     border: 1px solid var(--border-primary);
     background-color: var(--bg-primary);
     color: var(--text-primary);
@@ -131,7 +121,6 @@ const handleSignOut = async () => {
     background-color: var(--bg-tertiary);
 }
 
-/* Reduce size of loading/error components in header */
 .auth-section .loading-indicator,
 .auth-section .error-message-box {
     padding: var(--spacing-xs);
@@ -150,8 +139,6 @@ const handleSignOut = async () => {
 
 .app-main {
     flex-grow: 1;
-    /* Padding is often added by the container within views */
-    /* padding: var(--spacing-lg); */
 }
 
 .app-footer {
@@ -162,21 +149,9 @@ const handleSignOut = async () => {
     border-top: 1px solid var(--border-divider);
     background-color: var(--bg-secondary);
     margin-top: auto;
-    /* Push footer to bottom */
 }
 
 .app-footer p {
     margin: 0;
-}
-
-/* Router Transition */
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-    opacity: 0;
 }
 </style>
