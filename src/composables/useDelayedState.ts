@@ -8,7 +8,7 @@ import { ref, watch, type Ref, onUnmounted } from 'vue'
  * @param delayMs The delay in milliseconds before the returned ref becomes true.
  * @returns A ref that is true only if the sourceRef has been true for delayMs.
  */
-export function useDelayedTrueState(sourceRef: Ref<boolean>, delayMs: number = 300): Ref<boolean> {
+export function useDelayedTrueState(sourceRef: Ref<boolean>, delayMs: number = 600): Ref<boolean> {
   const delayedState = ref(false)
   let timerId: ReturnType<typeof setTimeout> | null = null
 

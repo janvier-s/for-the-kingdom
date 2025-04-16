@@ -78,7 +78,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     // Keep the full path for clarity, even if nested logically
-    path: '/:testamentSlug/:typeSlug/book/:bookSlug',
+    path: '/:testamentSlug/:typeSlug/:bookSlug',
     name: RouteNames.BOOK_DETAIL,
     component: () => import('@/views/BookDetailView.vue'),
     props: true,

@@ -139,9 +139,11 @@ const {
   data: verses, // Ref<Verse[] | undefined>
   isLoading: isLoadingVersesRaw,
   isError: isErrorVerses,
-  error: errorVerses
-  // refetch: refetchVerses // Can get refetch function if needed
-} = useVerses(selectedChapterId, selectedVersionId); // Pass local state refs
+  error: errorVerses,
+  status: versesStatus,
+  isFetching: isFetchingVerses
+  // refetch: refetchVerses
+} = useVerses(selectedChapterId, selectedVersionId);
 
 // --- Delayed Loaders ---
 const isLoadingBook = useDelayedTrueState(isLoadingBookRaw, 750); // 750ms delay
@@ -151,26 +153,63 @@ const isLoadingVerses = useDelayedTrueState(isLoadingVersesRaw, 750);
 
 // --- Watchers and Logic ---
 
-// Set default version once versions load and are available
+// Set default/initial version once versions load
 watch(versions, (newVersions) => {
+  console.log('[Watcher versions] Running. newVersions:', newVersions, 'selectedVersionId currently:', selectedVersionId.value);
+
+  // Only proceed if versions are loaded, there are versions, and none is selected yet
   if (newVersions && newVersions.length > 0 && !selectedVersionId.value) {
-    // If only one version, select it automatically
-    if (newVersions.length === 1) {
-      selectedVersionId.value = newVersions[0].version_id;
-      console.debug(`Auto-selected single version: ${newVersions[0].abbr}`);
+    console.log('[Watcher versions] Conditions met: Has new versions, length > 0, none selected yet.');
+    console.log('[Watcher versions] Available versions:', JSON.parse(JSON.stringify(newVersions)));
+
+    let versionToSelect: Version | undefined = undefined; // Use the actual Version type
+
+    // 1. Prioritize version with ID 1
+    versionToSelect = newVersions.find(v => v.version_id === 1);
+
+    if (versionToSelect) {
+      console.log(`[Watcher versions] Found priority version ID 1: ${versionToSelect.abbr}. Setting selectedVersionId.`);
     } else {
-      // Prioritize LSG if multiple versions exist
-      const defaultVersion = newVersions.find((v) => v.abbr === 'LSG') || null; // Don't default select if LSG not found
-      if (defaultVersion) {
-        // selectedVersionId.value = defaultVersion.version_id; // Optional: auto-select LSG
-        console.debug(`Default version LSG found (ID: ${defaultVersion.version_id}), but not auto-selecting.`);
-      } else {
-        console.warn("LSG version not found among available versions.");
+      // 2. If ID 1 not found, fallback to the *first* version in the list
+      console.log(`[Watcher versions] Priority version ID 1 not found. Falling back to the first available version.`);
+      versionToSelect = newVersions[0]; // Select the first one
+      if (versionToSelect) {
+        console.log(`[Watcher versions] Selected first available version: ${versionToSelect.abbr} (ID: ${versionToSelect.version_id}). Setting selectedVersionId.`);
       }
     }
-  }
-}, { immediate: true }); // Check immediately when versions data arrives
 
+    // Set the selected ID if we found a version to select
+    if (versionToSelect) {
+      selectedVersionId.value = versionToSelect.version_id;
+    } else {
+      // This case should theoretically not happen if newVersions.length > 0
+      console.warn('[Watcher versions] Could not determine a version to select, though versions array is not empty.');
+    }
+
+  } else {
+    console.log('[Watcher versions] Conditions NOT met. Reasons:', {
+      hasNewVersions: !!newVersions,
+      length: newVersions?.length,
+      isSelected: !!selectedVersionId.value
+    });
+  }
+}, { immediate: true });
+
+// --- ADD LOGGING FOR VERSES ---
+watch(versesStatus, (newStatus) => {
+  console.log(`%c[Verse Watcher] Verses Status: ${newStatus}`, 'color: green;');
+  if (newStatus === 'success') {
+    // Use JSON stringify/parse for cleaner logging of proxy object
+    console.log(`%c[Verse Watcher] Verses Data:`, 'color: green; font-weight: bold;', verses.value ? JSON.parse(JSON.stringify(verses.value)) : 'undefined');
+  }
+  if (newStatus === 'error') {
+    console.error(`%c[Verse Watcher] Verses Error:`, 'color: red; font-weight: bold;', errorVerses.value?.message);
+  }
+});
+
+watch(isFetchingVerses, (fetching) => {
+  console.log(`%c[Verse Watcher] Verses isFetching: ${fetching}`, 'color: green;');
+});
 // Set initial/current chapter once chapters load
 watch(chapters, (newChapters) => {
   if (newChapters && newChapters.length > 0) {
