@@ -2,160 +2,84 @@
   <div class="home-view container">
     <h1>Testaments de la Bible</h1>
 
-    <div v-if="isLoading" class="loading-text">Loading testament information...</div>
-    <div v-else-if="error" class="error-box">Error loading testaments: {{ error }}</div>
+    <BaseLoadingIndicator v-if="isLoading" message="Loading testaments..." />
+    <BaseErrorMessage v-if="isError" :message="error?.message" />
 
-    <section v-else-if="displayTestaments.length > 0" class="testament-sections">
-      <div
-        v-for="testament in displayTestaments"
-        :key="testament.testament_id"
-        class="testament-section card-link"
-        @click="goToTestament(testament.slug)"
-        role="link"
-        tabindex="0"
-        @keydown.enter="goToTestament(testament.slug)"
-      >
-        <h2>{{ testament.name }}</h2>
-      </div>
+    <section v-if="!isLoading && !isError && testaments && testaments.length > 0" class="testament-sections">
+      <router-link v-for="testament in testaments" :key="testament.testament_id"
+        :to="{ name: 'testament-detail', params: { testamentSlug: testament.slug } }" custom v-slot="{ navigate }">
+        <div class="testament-section card" role="link" tabindex="0" @click="navigate" @keydown.enter="navigate"
+          @keydown.space.prevent="navigate" v-prefetch="{
+            queryKey: ['testament_detail', testament.slug],
+            queryFn: () => fetchTestamentBySlug(testament.slug),
+            staleTime: 60 * 1000
+          }">
+          <h2>{{ testament.name }}</h2>
+        </div>
+      </router-link>
     </section>
 
-    <p v-else style="text-align: center; color: var(--text-secondary)">
+    <p v-if="!isLoading && !isError && testaments && testaments.length === 0" class="no-results">
       No testaments found in the database for the selected language.
     </p>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import supabase from '../supabase'
+<script setup lang="ts">
+import { useTestaments } from '@/composables/useBibleData';
+import { fetchTestamentBySlug } from '@/services/apiService';
+import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
+import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
-const router = useRouter()
-const rawTestamentTranslations = ref([])
-const isLoading = ref(true)
-const error = ref(null)
+// useQuery returns specific properties
+const {
+  data: testaments, // Access data via the 'data' ref
+  isLoading,       // True during initial fetch when no data is cached yet
+  isError,         // Boolean flag for error state
+  error            // The actual error object (Ref<Error | null>)
+  // isFetching,    // True during initial fetch AND background refetches (optional)
+} = useTestaments();
 
-const getLanguageId = async (langName) => {
-  try {
-    const { data, error: langError } = await supabase
-      .from('languages')
-      .select('lang_id')
-      .eq('lang', langName)
-      .single()
-
-    if (langError) throw langError
-    if (!data) throw new Error(`Language '${langName}' not found in database.`)
-
-    return data.lang_id
-  } catch (err) {
-    console.error(`Error fetching language ID for ${langName}:`, err)
-    throw new Error(`Failed to find language ID for ${langName}. ${err.message}`)
-  }
-}
-
-const fetchTestamentsData = async () => {
-  isLoading.value = true
-  error.value = null
-  rawTestamentTranslations.value = []
-
-  try {
-    const frenchLangId = await getLanguageId('Français')
-
-    const { data: translationsData, error: fetchError } = await supabase
-      .from('testament_translations')
-      .select(
-        `
-        name,
-        slug,
-        testament_id,
-        testaments ( testament_id )
-      `,
-      )
-      .eq('lang_id', frenchLangId)
-      .order('testament_id')
-
-    if (fetchError) throw fetchError
-
-    rawTestamentTranslations.value = translationsData || []
-  } catch (err) {
-    console.error('Error fetching testaments data:', err)
-    error.value = err.message || 'Failed to load testament list.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const displayTestaments = computed(() => {
-  return rawTestamentTranslations.value
-    .map((item) => ({
-      testament_id: item.testament_id || item.testaments?.testament_id,
-      name: item.name,
-      slug: item.slug,
-    }))
-    .filter((item) => item.testament_id != null)
-})
-
-const goToTestament = (slug) => {
-  if (!slug) {
-    console.error('Cannot navigate: slug is undefined')
-    error.value = 'Navigation error: Missing identifier for the selected testament.'
-    return
-  }
-  router.push({ name: 'testament-detail', params: { testamentSlug: slug } })
-}
-
-onMounted(() => {
-  fetchTestamentsData()
-})
 </script>
 
 <style scoped>
 .home-view {
-  padding: 2rem 1rem;
+  padding-top: var(--spacing-xl);
+  padding-bottom: var(--spacing-xl);
+}
+
+h1 {
+  margin-bottom: var(--spacing-xl);
 }
 
 .testament-sections {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-top: 2rem;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
 }
 
 .testament-section {
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-medium);
-  padding: 1.5rem;
+  padding: var(--spacing-xl);
   text-align: center;
-  background-color: var(--card-bg);
-  transition:
-    transform 0.2s ease-in-out,
-    box-shadow 0.2s ease-in-out;
   cursor: pointer;
 }
 
-.testament-section:hover,
 .testament-section:focus {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  outline: 2px solid var(--text-link);
+  outline-offset: 2px;
 }
 
 .testament-section h2 {
   margin: 0;
-  color: var(--primary-color);
+  color: var(--text-heading);
   font-size: 1.4rem;
 }
 
-.loading-text,
-.error-box {
+.no-results {
   text-align: center;
-  padding: 2rem;
-  margin-top: 2rem;
-}
-
-.error-box {
-  color: var(--error-color);
-  background-color: var(--error-bg);
-  border: 1px solid var(--error-color);
-  border-radius: var(--border-radius-medium);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-xl);
+  font-style: italic;
 }
 </style>

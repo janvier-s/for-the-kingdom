@@ -1,137 +1,66 @@
 <template>
-  <div class="testament-view">
-    <header v-if="isLoading">
-      <h1>Loading Testament...</h1>
-    </header>
-    <header v-else-if="error">
-      <h1 class="error-message">Error: {{ error }}</h1>
-    </header>
-    <header v-else-if="testamentName">
-      <h1>{{ testamentName }}</h1>
-    </header>
-    <header v-else>
-      <h1>Testament</h1>
+  <div class="testament-view container">
+    <header class="view-header">
+      <BaseLoadingIndicator v-if="isLoading" message="Loading Testament..." />
+      <BaseErrorMessage v-if="isError" :message="error?.message" />
+      <h1 v-if="!isLoading && !isError && testamentName">{{ testamentName }}</h1>
+      <h1 v-if="!isLoading && !isError && !testamentName">Testament Not Found</h1>
     </header>
 
     <main>
-      <TestamentTypeList
-        v-if="actualTestamentId && testamentSlug"
-        :testament-id="actualTestamentId"
-        :testament-slug="testamentSlug"
-      />
-      <p v-else-if="!isLoading && !error">Could not load details for this testament.</p>
+      <TestamentGenreList v-if="!isLoading && !isError && testamentId && props.testamentSlug"
+        :testament-id="testamentId" :testament-slug="props.testamentSlug" />
+      <p v-if="!isLoading && !isError && !testamentId" class="no-results">
+        Could not load details for this testament.
+      </p>
     </main>
   </div>
 </template>
 
-<script setup>
-import { ref, watch, defineProps } from 'vue'
-import supabase from '../supabase'
-import TestamentTypeList from '../components/TestamentTypeList.vue'
+<script setup lang="ts">
+import { computed, type Ref } from 'vue';
+// No longer need useRoute if slug comes from props
+import { useTestamentDetails } from '@/composables/useBibleData';
+import TestamentGenreList from '@/components/TestamentGenreList.vue';
+import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
+import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
 
-const props = defineProps({
-  testamentSlug: {
-    type: String,
-    required: true,
-  },
-})
-
-const testamentSlug = ref(props.testamentSlug)
-const testamentName = ref('')
-const actualTestamentId = ref(null)
-const isLoading = ref(true)
-const error = ref(null)
-
-const getLanguageId = async (langName) => {
-  try {
-    const { data, error: langError } = await supabase
-      .from('languages')
-      .select('lang_id')
-      .eq('lang', langName)
-      .single()
-
-    if (langError) throw langError
-    if (!data) throw new Error(`Language '${langName}' not found in database.`)
-
-    return data.lang_id
-  } catch (err) {
-    console.error(`Error fetching language ID for ${langName}:`, err)
-    throw new Error(`Failed to find language ID for ${langName}. ${err.message}`)
-  }
+interface Props {
+  testamentSlug: string;
 }
+const props = defineProps<Props>();
 
-const fetchTestamentDetailsBySlug = async (slug) => {
-  if (!slug) {
-    error.value = 'No testament identifier provided.'
-    isLoading.value = false
-    return
-  }
+// Use computed for reactive prop access passed to useQuery key
+const slugRef = computed(() => props.testamentSlug);
 
-  isLoading.value = true
-  error.value = null
-  testamentName.value = ''
-  actualTestamentId.value = null
+// Get Vue Query result object
+const {
+  data: testamentDetails, // The raw data object { name, testament_id } | null
+  isLoading,
+  isError,
+  error
+} = useTestamentDetails(slugRef as Ref<string | undefined>); // Cast needed if prop isn't optional
 
-  try {
-    const frenchLangId = await getLanguageId('Français')
+// Recreate computed properties based on the data returned by useQuery
+const testamentName = computed(() => testamentDetails.value?.name ?? '');
+const testamentId = computed(() => testamentDetails.value?.testament_id ?? null);
 
-    const { data, error: fetchError } = await supabase
-      .from('testament_translations')
-      .select('name, testament_id')
-      .eq('slug', slug)
-      .eq('lang_id', frenchLangId)
-      .single()
-
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        throw new Error(`Testament with slug '${slug}' not found for the selected language.`)
-      }
-      throw fetchError
-    }
-
-    if (data) {
-      testamentName.value = data.name
-      actualTestamentId.value = data.testament_id
-    } else {
-      throw new Error(`Testament with slug '${slug}' not found.`)
-    }
-  } catch (err) {
-    console.error('Error fetching testament details by slug:', err)
-    error.value = err.message || 'Failed to load testament details.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-watch(
-  () => props.testamentSlug,
-  (newSlug) => {
-    testamentSlug.value = newSlug
-    fetchTestamentDetailsBySlug(newSlug)
-  },
-  { immediate: true },
-)
 </script>
 
 <style scoped>
 .testament-view {
-  padding: 1rem;
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
 }
-header {
-  text-align: center;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 1rem;
+
+main {
+  margin-top: var(--spacing-lg);
 }
-header h1 {
-  color: var(--primary-color);
-}
-.error-message {
-  color: var(--error-color);
-}
-main p {
+
+.no-results {
   text-align: center;
   color: var(--text-secondary);
-  margin-top: 2rem;
+  margin-top: var(--spacing-xl);
+  font-style: italic;
 }
 </style>
