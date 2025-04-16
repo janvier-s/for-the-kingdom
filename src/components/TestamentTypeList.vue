@@ -97,7 +97,7 @@ const fetchTypesForTestament = async (testamentId) => {
       .select('name, slug, type_id')
       .in('type_id', distinctTypeIds)
       .eq('lang_id', langId)
-      .order('name')
+      .order('type_id', { ascending: true })
 
     if (translationError) throw translationError
 
@@ -121,7 +121,6 @@ watch(
 </script>
 
 <style scoped>
-/* Add relevant styles */
 .testament-type-list {
   padding-top: 1rem;
 }
