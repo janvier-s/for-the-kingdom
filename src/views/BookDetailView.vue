@@ -51,15 +51,28 @@
       </p>
 
       <div v-if="selectedChapterId" class="content-area">
-        <BaseLoadingIndicator v-if="isLoadingVerses" message="Loading content..." />
-        <BaseErrorMessage v-if="isErrorVerses" :message="errorVerses?.message" />
-        <div v-if="!isLoadingVerses && !isErrorVerses && verses && verses.length > 0" class="verses-container">
-          <p v-for="verse in verses" :key="verse.verse_id" class="verse">
+        <!-- Show combined loading indicator -->
+        <BaseLoadingIndicator v-if="isLoadingVersesCombined" message="Loading content..." />
+        <!-- Show combined error message -->
+        <BaseErrorMessage v-if="combinedVerseError" :message="combinedVerseError" />
+
+        <div v-if="!isLoadingVersesCombined && !combinedVerseError && versesWithLinks && versesWithLinks.length > 0"
+          class="verses-container">
+          <!-- Iterate over the computed versesWithLinks -->
+          <p v-for="verse in versesWithLinks" :key="verse.verse_id" class="verse">
             <sup :id="`v${selectedChapterNumber}-${verse.verse_number}`">{{ verse.verse_number }}</sup>
             {{ verse.verse_text }}
+            <!-- CCC Link Indicator (logic remains the same, uses verse.cccParagraphIds) -->
+            <span v-if="verse.cccParagraphIds && verse.cccParagraphIds.length > 0" class="ccc-link-indicator"
+              :title="`Links to CCC: ${verse.cccParagraphIds.join(', ')}`" role="link" tabindex="0"
+              @click="showCatechismLinks(verse.cccParagraphIds)"
+              @keydown.enter="showCatechismLinks(verse.cccParagraphIds)"
+              @keydown.space.prevent="showCatechismLinks(verse.cccParagraphIds)">
+              [CCC]
+            </span>
           </p>
         </div>
-        <p v-if="!isLoadingVerses && !isErrorVerses && verses && verses.length === 0 && chapters && chapters.length > 0"
+        <p v-if="!isLoadingVersesCombined && !combinedVerseError && versesWithLinks && versesWithLinks.length === 0 && chapters && chapters.length > 0"
           class="no-results">
           No verses found for Chapter {{ selectedChapterNumber }} in the selected version.
         </p>
@@ -81,16 +94,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, type Ref } from 'vue';
 import { useDelayedTrueState } from '@/composables/useDelayedState';
-// No longer need useRoute if slug comes from props
 import {
   useBookDetails,
   useBibleVersions,
   useChapters,
-  useVerses,
+  useVerseText,
+  useCatechismLinksForVerses,
 } from '@/composables/useBibleData';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
-import type { Chapter, Version } from '@/types';
+import type { Chapter, Version, Verse } from '@/types';
+type BaseVerse = Omit<Verse, 'cccParagraphIds'>;
+
 
 interface Props {
   bookSlug: string;
@@ -102,54 +117,92 @@ const bookSlugRef = computed(() => props.bookSlug);
 // --- Local State Refs ---
 const selectedVersionId = ref<number | null>(null);
 const selectedChapterId = ref<number | null>(null);
-const selectedChapterNumber = ref<number>(1); // Default to chapter 1
+const selectedChapterNumber = ref<number>(1);
 
 // --- Composables (Vue Query) ---
 
-// 1. Fetch Book Details (Title, ID) based on Slug
+// 1. Fetch Book Details
 const {
-  data: bookDetailsData, // Raw data { title, book_id } | null
+  data: bookDetailsData,
   isLoading: isLoadingBookRaw,
   isError: isErrorBook,
   error: errorBook
 } = useBookDetails(bookSlugRef as Ref<string | undefined>);
 
-// Recreate computed properties for book title and ID
+// Computed properties dependent on bookDetailsData
 const bookTitle = computed(() => bookDetailsData.value?.title ?? '');
-const bookId = computed(() => bookDetailsData.value?.book_id ?? null); // Ref<number | null>
+const bookId = computed(() => bookDetailsData.value?.book_id ?? null);
 
-// 2. Fetch Available Versions (runs automatically via Vue Query)
+// 2. Fetch Available Versions
 const {
-  data: versions, // Ref<Version[] | undefined>
+  data: versions,
   isLoading: isLoadingVersionsRaw,
   isError: isErrorVersions,
   error: errorVersions
 } = useBibleVersions();
 
-// 3. Fetch Chapters (enabled when bookId is valid)
+// 3. Fetch Chapters
 const {
-  data: chapters, // Ref<Chapter[] | undefined>
+  data: chapters,
   isLoading: isLoadingChaptersRaw,
   isError: isErrorChapters,
   error: errorChapters
-} = useChapters(bookId); // Pass reactive bookId ref
+} = useChapters(bookId);
 
-// 4. Fetch Verses (enabled when chapterId and versionId are valid)
+// 4a. Fetch Base Verse Text
 const {
-  data: verses, // Ref<Verse[] | undefined>
-  isLoading: isLoadingVersesRaw,
-  isError: isErrorVerses,
-  error: errorVerses,
-  status: versesStatus,
-  isFetching: isFetchingVerses
-  // refetch: refetchVerses
-} = useVerses(selectedChapterId, selectedVersionId);
+  data: baseVerses,
+  isLoading: isLoadingVerseTextRaw,
+  isError: isErrorVerseText,
+  error: errorVerseText,
+  status: verseTextStatus,
+} = useVerseText(selectedChapterId, selectedVersionId);
 
-// --- Delayed Loaders ---
-const isLoadingBook = useDelayedTrueState(isLoadingBookRaw, 750); // 750ms delay
-const isLoadingVersions = useDelayedTrueState(isLoadingVersionsRaw, 750);
-const isLoadingChapters = useDelayedTrueState(isLoadingChaptersRaw, 750);
-const isLoadingVerses = useDelayedTrueState(isLoadingVersesRaw, 750);
+// 4b. Extract Verse IDs
+const verseIdsForLinks = computed(() => baseVerses.value?.map(v => v.verse_id));
+
+// 4c. Fetch CCC Links
+const {
+  data: cccLinksMap,
+  isLoading: isLoadingCccLinksRaw,
+  isError: isErrorCccLinks,
+  error: errorCccLinks,
+  status: cccLinksStatus,
+} = useCatechismLinksForVerses(verseIdsForLinks);
+
+
+// --- Combined Loading/Error/Data State ---
+
+// Combined loading state specifically for the verse content area
+const isLoadingVersesCombined = computed(() => {
+  const linksShouldLoad = !!verseIdsForLinks.value && verseIdsForLinks.value.length > 0;
+  // True if verse text is loading OR if links are expected and loading
+  return isLoadingVerseTextRaw.value || (linksShouldLoad && isLoadingCccLinksRaw.value);
+});
+
+const isLoadingVersesDelayed = useDelayedTrueState(isLoadingVersesCombined, 750);
+
+// Combined error prioritizing prerequisite data errors
+const combinedVerseError = computed(() => {
+  if (isErrorBook.value) return errorBook.value?.message ?? 'Failed to load book details.';
+  if (isErrorChapters.value) return errorChapters.value?.message ?? 'Failed to load chapters.';
+  if (isErrorVerseText.value) return errorVerseText.value?.message ?? 'Failed to load verses.';
+  if (isErrorCccLinks.value) return errorCccLinks.value?.message ?? 'Failed to load Catechism links.';
+  return null;
+});
+
+
+// 4d. Merge Base Verses and Links
+const versesWithLinks = computed((): Verse[] => {
+  if (!baseVerses.value) return [];
+  return baseVerses.value.map(baseVerse => {
+    const linkedIds = cccLinksMap.value?.get(baseVerse.verse_id);
+    return {
+      ...baseVerse,
+      ...(linkedIds && linkedIds.length > 0 && { cccParagraphIds: linkedIds }),
+    };
+  });
+});
 
 // --- Watchers and Logic ---
 
@@ -162,54 +215,25 @@ watch(versions, (newVersions) => {
     console.log('[Watcher versions] Conditions met: Has new versions, length > 0, none selected yet.');
     console.log('[Watcher versions] Available versions:', JSON.parse(JSON.stringify(newVersions)));
 
-    let versionToSelect: Version | undefined = undefined; // Use the actual Version type
-
-    // 1. Prioritize version with ID 1
-    versionToSelect = newVersions.find(v => v.version_id === 1);
-
-    if (versionToSelect) {
-      console.log(`[Watcher versions] Found priority version ID 1: ${versionToSelect.abbr}. Setting selectedVersionId.`);
-    } else {
-      // 2. If ID 1 not found, fallback to the *first* version in the list
-      console.log(`[Watcher versions] Priority version ID 1 not found. Falling back to the first available version.`);
-      versionToSelect = newVersions[0]; // Select the first one
-      if (versionToSelect) {
-        console.log(`[Watcher versions] Selected first available version: ${versionToSelect.abbr} (ID: ${versionToSelect.version_id}). Setting selectedVersionId.`);
-      }
-    }
+    // Find the version to select: Prioritize ID 1, otherwise take the first.
+    let versionToSelect: Version | undefined = newVersions.find(v => v.version_id === 1) || newVersions[0];
 
     // Set the selected ID if we found a version to select
     if (versionToSelect) {
+      console.log(`[Watcher versions] Selecting version: ${versionToSelect.abbr} (ID: ${versionToSelect.version_id}).`);
       selectedVersionId.value = versionToSelect.version_id;
     } else {
       // This case should theoretically not happen if newVersions.length > 0
       console.warn('[Watcher versions] Could not determine a version to select, though versions array is not empty.');
     }
-
   } else {
-    console.log('[Watcher versions] Conditions NOT met. Reasons:', {
-      hasNewVersions: !!newVersions,
-      length: newVersions?.length,
-      isSelected: !!selectedVersionId.value
-    });
+    console.log('[Watcher versions] Conditions NOT met or version already selected.');
+    // Optional: Log specific reasons why conditions weren't met
+    // console.log('[Watcher versions] Details:', { hasNewVersions: !!newVersions, length: newVersions?.length, isSelected: !!selectedVersionId.value });
   }
 }, { immediate: true });
 
 // --- ADD LOGGING FOR VERSES ---
-watch(versesStatus, (newStatus) => {
-  console.log(`%c[Verse Watcher] Verses Status: ${newStatus}`, 'color: green;');
-  if (newStatus === 'success') {
-    // Use JSON stringify/parse for cleaner logging of proxy object
-    console.log(`%c[Verse Watcher] Verses Data:`, 'color: green; font-weight: bold;', verses.value ? JSON.parse(JSON.stringify(verses.value)) : 'undefined');
-  }
-  if (newStatus === 'error') {
-    console.error(`%c[Verse Watcher] Verses Error:`, 'color: red; font-weight: bold;', errorVerses.value?.message);
-  }
-});
-
-watch(isFetchingVerses, (fetching) => {
-  console.log(`%c[Verse Watcher] Verses isFetching: ${fetching}`, 'color: green;');
-});
 // Set initial/current chapter once chapters load
 watch(chapters, (newChapters) => {
   if (newChapters && newChapters.length > 0) {
@@ -232,19 +256,42 @@ watch(chapters, (newChapters) => {
 }, { immediate: true }); // Check immediately when chapters data arrives
 
 // Reset chapter selection if book changes
-watch(bookId, () => {
-  console.debug("Book ID changed, resetting chapter selection.");
-  selectedChapterId.value = null;
-  selectedChapterNumber.value = 1;
-  // Verses query will become disabled automatically if selectedChapterId is null
+watch(bookId, (newBookId, oldBookId) => {
+  // Prevent reset on initial load if bookId is already set
+  if (newBookId !== oldBookId) {
+    console.debug("Book ID changed, resetting chapter selection.");
+    selectedChapterId.value = null;
+    selectedChapterNumber.value = 1;
+  }
 });
 
-// Function to change chapter
+// Watch the status of the CCC links fetch
+watch(cccLinksStatus, (status) => {
+  console.log(`%c[CCCLinks Watcher] Status: ${status}`, 'color: purple;');
+  // Optional: Log data/error on status change
+  if (status === 'success') {
+    console.log(`%c[CCCLinks Watcher] Data (Map):`, 'color: purple;', cccLinksMap.value); // Map doesn't need stringify usually
+  } else if (status === 'error') {
+    console.error(`%c[CCCLinks Watcher] Error:`, 'color: red; font-weight: bold;', errorCccLinks.value?.message);
+  }
+});
+// Watch the final computed/merged data
+watch(versesWithLinks, (newVal) => {
+  console.log('%c[Verse Watcher] Merged versesWithLinks updated:', 'color: green; font-weight: bold;', JSON.parse(JSON.stringify(newVal ?? [])));
+  const countWithLinks = newVal?.filter(v => v.cccParagraphIds && v.cccParagraphIds.length > 0).length ?? 0;
+  console.log(`%c[Verse Watcher]   ${countWithLinks} verses have CCC links.`, 'color: green;');
+}, { deep: true }); // deep might be necessary if Vue doesn't pick up changes within the computed array otherwise
+
+// --- Methods ---
+const showCatechismLinks = (paragraphIds: number[] | undefined) => {
+  if (!paragraphIds) return;
+  console.log('Clicked CCC Link Indicator. Linked Paragraph IDs:', paragraphIds);
+  alert(`Linked Catechism Paragraphs:\n${paragraphIds.join('\n')}`);
+};
+
 const changeChapter = (direction: 1 | -1) => {
   if (!chapters.value || chapters.value.length <= 1) return;
-
   const currentIdx = chapters.value.findIndex(ch => ch.chapter_id === selectedChapterId.value);
-  // Handle case where current chapter isn't found (shouldn't happen often with watcher)
   if (currentIdx === -1 && chapters.value.length > 0) {
     const newChapter = chapters.value[0];
     console.warn("Current chapter ID not found, resetting to first chapter.");
@@ -252,13 +299,10 @@ const changeChapter = (direction: 1 | -1) => {
     selectedChapterNumber.value = newChapter.chapter_number;
     return;
   }
-
   const newIdx = currentIdx + direction;
-
   if (newIdx >= 0 && newIdx < chapters.value.length) {
     const newChapter = chapters.value[newIdx];
     console.debug(`Changing chapter to: ${newChapter.chapter_number} (ID: ${newChapter.chapter_id})`);
-    // Update local state refs - Vue Query watcher on useVerses will trigger refetch
     selectedChapterId.value = newChapter.chapter_id;
     selectedChapterNumber.value = newChapter.chapter_number;
   }

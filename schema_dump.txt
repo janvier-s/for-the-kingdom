@@ -50,3 +50,5 @@ try {
 } catch (err) {
   console.error('❌ Error during export process:', err)
 }
+
+// Removed the trailing 'ß;' which looked like a typo

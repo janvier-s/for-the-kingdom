@@ -5,30 +5,27 @@
 export interface Language {
   lang_id: number
   lang: string
-  // Add other fields if needed
 }
 
 export interface Testament {
   testament_id: number
-  // Add other base testament fields if needed
 }
 
 export interface TestamentTranslation {
-  testament_translation_id: number // Assuming a primary key exists
+  testament_translation_id: number
   testament_id: number
   lang_id: number
   name: string
   slug: string
-  testaments?: Testament // Relation might be included
+  testaments?: Testament
 }
 
 export interface BookGenre {
   genre_id: number
-  // Add other base genre fields if needed
 }
 
 export interface GenreTranslation {
-  genre_translation_id: number // Assuming a primary key exists
+  genre_translation_id: number
   genre_id: number
   lang_id: number
   name: string
@@ -40,13 +37,11 @@ export interface Book {
   testament_id: number
   genre_id: number | null
   bible_order: number
-  // Add other base book fields if needed
 }
 
-// Type for the structure returned when joining bible_books and bible_book_translations
 export interface BookWithTranslation extends Book {
   bible_book_translations: Array<{
-    book_translation_id: number // Assuming a primary key exists
+    book_translation_id: number
     title: string
     abbr: string
     slug: string
@@ -54,7 +49,6 @@ export interface BookWithTranslation extends Book {
   }>
 }
 
-// Simplified structure often used in components
 export interface BookSummary {
   book_id: number
   bible_order: number
@@ -76,10 +70,35 @@ export interface Version {
   full_name: string
 }
 
-export interface Verse {
+export interface BaseVerse {
   verse_id: number
   chapter_id: number
   version_id: number
   verse_number: number
   verse_text: string
+  reference_id: number | null
+}
+
+export interface Verse extends BaseVerse {
+  cccParagraphIds?: number[]
+}
+
+export interface CatechismBibleIndexEntry {
+  link_id?: number
+  ccc_num: number
+  reference_id: number
+}
+
+export interface CatechismParagraph {
+  // ccc_num is the primary identifier based on schema
+  ccc_num: number
+  // Optional: paragraph_id might be a separate concept or PK of translations table
+  // paragraph_id?: number;
+  paragraph_number?: string // This might come from translations if needed
+  text?: string // This likely comes from translations
+  // Other structural IDs if available directly on this table (less likely)
+  // part_id?: number | null;
+  // section_id?: number | null;
+  // chapter_id?: number | null;
+  // article_id?: number | null;
 }

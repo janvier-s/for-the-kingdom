@@ -12,8 +12,18 @@ import type {
   Chapter,
   Version,
   Verse,
+  BaseVerse,
+  CatechismBibleIndexEntry,
 } from '@/types'
 import { DEFAULT_LANGUAGE_NAME } from '@/constants'
+
+type BaseVerse = Omit<Verse, 'cccParagraphIds'> // This type is correct
+
+// --- Define type for RPC result row ---
+interface CccLinkResult {
+  verse_id: number
+  ccc_nums: number[] | null // RPC might return null if array_agg finds nothing
+}
 
 /**
  * Fetches testament translations for the default language.
@@ -294,26 +304,184 @@ export async function fetchChaptersForBook(bookId: number): Promise<Chapter[]> {
 
 /**
  * Fetches verses for a specific chapter and version ID.
+ * Selects only columns that exist in the 'bible_verses' table.
  *
  * @param chapterId - The ID of the chapter.
  * @param versionId - The ID of the Bible version.
- * @returns A promise resolving to an array of verses.
+ * @returns A promise resolving to an array of verses (without CCC links initially).
  * @throws If there's an error during the fetch.
  */
 export async function fetchVersesForChapter(
   chapterId: number,
   versionId: number,
-): Promise<Verse[]> {
+): Promise<BaseVerse[]> {
+  // Return type should be BaseVerse[]
   const { data, error } = await supabase
     .from('bible_verses')
-    .select('verse_id, verse_number, verse_text, chapter_id, version_id')
+    // --- CRITICAL CHECK: Ensure this SELECT is exactly as follows ---
+    .select('verse_id, chapter_id, version_id, verse_number, verse_text')
+    // --- NO reference_id should be listed here ---
     .eq('chapter_id', chapterId)
     .eq('version_id', versionId)
     .order('verse_number')
 
   if (error) {
     console.error(`Error fetching verses for chapter ${chapterId}, version ${versionId}:`, error)
-    throw new Error(`Failed to load verses: ${error.message}`)
+    // Make the error message more specific
+    throw new Error(`Failed to load verses (DB error: ${error.message})`)
   }
-  return data || []
+  // Cast might be needed if Supabase types aren't perfect, but `data` should match BaseVerse[]
+  return (data as BaseVerse[]) || []
+}
+
+/**
+ * Fetches Catechism paragraph numbers (ccc_num) linked to a given list of verse IDs.
+ * Performs a two-step lookup: verse_id -> reference_id -> ccc_num.
+ *
+ * @param verseIds - An array of verse IDs to look up.
+ * @returns A promise resolving to a Map where keys are the original verse IDs
+ *          and values are arrays of corresponding ccc_num values.
+ * @throws If there's an error during the fetch.
+ */
+export async function fetchCatechismLinksForVerseIds(
+  verseIds: number[],
+): Promise<Map<number, number[]>> {
+  // Output maps verse_id -> ccc_num[]
+  const finalLinkMap = new Map<number, number[]>()
+  if (!verseIds || verseIds.length === 0) {
+    return finalLinkMap
+  }
+
+  // --- Step 1: Fetch reference_id for each verse_id ---
+  console.debug(
+    `[fetchCatechismLinks] Step 1: Fetching reference_ids for ${verseIds.length} verses.`,
+  )
+  const { data: verseRefData, error: verseRefError } = await supabase
+    .from('bible_verses')
+    .select('verse_id, reference_id')
+    .in('verse_id', verseIds)
+    .not('reference_id', 'is', null) // Only interested in verses that have a reference_id
+
+  if (verseRefError) {
+    console.error('Error fetching verse reference_ids:', verseRefError)
+    throw new Error(`Failed to fetch verse references: ${verseRefError.message}`)
+  }
+
+  if (!verseRefData || verseRefData.length === 0) {
+    console.debug('[fetchCatechismLinks] Step 1: No verses found with reference_ids.')
+    return finalLinkMap // No references found, so no links possible
+  }
+
+  // Create a map for quick lookup: verse_id -> reference_id
+  const verseToReferenceMap = new Map<number, number>()
+  // Collect unique reference IDs for the next query
+  const uniqueReferenceIds = new Set<number>()
+  for (const item of verseRefData) {
+    if (item.verse_id && item.reference_id) {
+      verseToReferenceMap.set(item.verse_id, item.reference_id)
+      uniqueReferenceIds.add(item.reference_id)
+    }
+  }
+  const referenceIdsToQuery = Array.from(uniqueReferenceIds)
+  console.debug(
+    `[fetchCatechismLinks] Step 1: Found ${referenceIdsToQuery.length} unique reference_ids.`,
+  )
+
+  // --- Step 2: Fetch ccc_num using reference_ids ---
+  if (referenceIdsToQuery.length === 0) {
+    return finalLinkMap // No valid reference IDs to query
+  }
+  console.debug(
+    `[fetchCatechismLinks] Step 2: Fetching CCC links for ${referenceIdsToQuery.length} reference_ids.`,
+  )
+  const { data: indexData, error: indexError } = await supabase
+    .from('catechism_bible_index')
+    // Use correct column names from schema
+    .select('reference_id, ccc_num')
+    .in('reference_id', referenceIdsToQuery)
+
+  if (indexError) {
+    console.error('Error fetching Catechism index data:', indexError)
+    throw new Error(`Failed to fetch Catechism index: ${indexError.message}`)
+  }
+
+  if (!indexData || indexData.length === 0) {
+    console.debug('[fetchCatechismLinks] Step 2: No CCC links found for the reference_ids.')
+    return finalLinkMap // No links found for these references
+  }
+
+  // Create a map for quick lookup: reference_id -> ccc_num[]
+  const referenceToCccMap = new Map<number, number[]>()
+  for (const entry of indexData as CatechismBibleIndexEntry[]) {
+    // Use updated type
+    if (entry.reference_id && entry.ccc_num) {
+      const existing = referenceToCccMap.get(entry.reference_id) || []
+      existing.push(entry.ccc_num)
+      referenceToCccMap.set(entry.reference_id, existing)
+    }
+  }
+  console.debug(
+    `[fetchCatechismLinks] Step 2: Found links for ${referenceToCccMap.size} reference_ids.`,
+  )
+
+  // --- Step 3: Merge Results - Map original verse_id to final ccc_num[] ---
+  for (const verseId of verseIds) {
+    const referenceId = verseToReferenceMap.get(verseId)
+    if (referenceId) {
+      const cccNums = referenceToCccMap.get(referenceId)
+      if (cccNums && cccNums.length > 0) {
+        finalLinkMap.set(verseId, cccNums)
+      }
+    }
+  }
+  console.debug(
+    `[fetchCatechismLinks] Step 3: Final map created linking ${finalLinkMap.size} original verse_ids to CCC numbers.`,
+  )
+
+  return finalLinkMap
+}
+
+/**
+ * Fetches Catechism paragraph numbers (ccc_num) linked to a given list of verse IDs
+ * using the 'get_ccc_links_for_verse_ids' database function (RPC).
+ *
+ * @param verseIds - An array of verse IDs to look up.
+ * @returns A promise resolving to a Map where keys are verse IDs and values are arrays of corresponding ccc_nums.
+ * @throws If there's an error during the RPC call.
+ */
+export async function fetchCatechismLinksViaRpc(
+  verseIds: number[],
+): Promise<Map<number, number[]>> {
+  if (!verseIds || verseIds.length === 0) {
+    return new Map() // Return empty map if no IDs are provided
+  }
+
+  // Call the database function
+  const { data, error } = await supabase.rpc('get_ccc_links_for_verse_ids', {
+    // Pass the verse IDs as the argument named in the function definition
+    target_verse_ids: verseIds,
+  })
+
+  if (error) {
+    console.error('Error calling get_ccc_links_for_verse_ids RPC:', error)
+    throw new Error(`Failed to fetch Catechism links via RPC: ${error.message}`)
+  }
+
+  // Process the RPC result (which is an array of CccLinkResult objects) into a Map
+  const indexMap = new Map<number, number[]>()
+  if (data) {
+    // Supabase RPC result type might need casting
+    const results = data as CccLinkResult[]
+    for (const result of results) {
+      // Ensure ccc_nums is an array and not null before setting
+      if (result.verse_id && result.ccc_nums && result.ccc_nums.length > 0) {
+        indexMap.set(result.verse_id, result.ccc_nums)
+      }
+    }
+  }
+
+  console.debug(
+    `[apiService] Fetched Catechism links via RPC for ${verseIds.length} verse IDs. Found links for ${indexMap.size} verses.`,
+  )
+  return indexMap
 }

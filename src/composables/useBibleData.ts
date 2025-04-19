@@ -11,7 +11,11 @@ import type {
   Chapter,
   Version,
   Verse,
+  CatechismBibleIndexEntry,
 } from '@/types'
+
+// Type for base verse data without links
+type BaseVerse = Omit<Verse, 'cccParagraphIds'>
 
 /**
  * Fetches and manages the list of testaments.
@@ -161,26 +165,77 @@ export function useChapters(bookIdRef: Ref<number | null>) {
 }
 
 /**
- * Fetches and manages the list of verses for a given chapter and version ID.
+ * Fetches and manages the list of base verses (text, number, ID)
+ * for a given chapter and version ID. Does NOT fetch linked sources.
+ *
  * @param chapterIdRef - A Ref containing the chapter ID.
  * @param versionIdRef - A Ref containing the version ID.
- * @returns Vue Query result object for verses.
+ * @returns Vue Query result object for base verses.
+ * @see useCatechismLinksForVerses for fetching linked CCC paragraph IDs.
  */
-export function useVerses(chapterIdRef: Ref<number | null>, versionIdRef: Ref<number | null>) {
+export function useVerseText(chapterIdRef: Ref<number | null>, versionIdRef: Ref<number | null>) {
   return useQuery({
-    // Key includes both dependencies
-    queryKey: ['verses', chapterIdRef, versionIdRef],
-    queryFn: () => {
+    // Use a more specific query key
+    queryKey: ['verseText', chapterIdRef, versionIdRef],
+    queryFn: async (): Promise<BaseVerse[]> => {
+      // Return type is BaseVerse[]
       const chapterId = chapterIdRef.value
       const versionId = versionIdRef.value
+
       if (chapterId === null || versionId === null) {
-        throw new Error('Chapter ID and Version ID are required but missing.')
+        // Return empty array or throw? Throwing is better for enabled: true
+        throw new Error('Chapter ID and Version ID are required but missing for useVerseText.')
+        // return []; // Can return empty array if query might run when disabled temporarily
       }
-      return apiService.fetchVersesForChapter(chapterId, versionId)
+
+      console.debug(
+        `[useVerseText queryFn] Fetching base verses for Chapter ${chapterId}, Version ${versionId}`,
+      )
+      // Directly call the service function that fetches only verses
+      const versesData = await apiService.fetchVersesForChapter(chapterId, versionId)
+      console.debug(`[useVerseText queryFn] Fetched ${versesData.length} base verses.`)
+      return versesData
     },
-    // Only run the query if both IDs are valid numbers
+    // Query enabled only when both IDs are valid numbers
     enabled: computed(
       () => typeof chapterIdRef.value === 'number' && typeof versionIdRef.value === 'number',
     ),
+    // Optional: Adjust staleTime/gcTime if needed
+    staleTime: 5 * 60 * 1000, // Verses might not change often
+  })
+}
+
+/**
+ * Fetches and manages Catechism paragraph numbers (ccc_num) linked to a given set of verse IDs.
+ * Uses the RPC function 'get_ccc_links_for_verse_ids'.
+ *
+ * @param verseIdsRef - A Ref containing an array of verse IDs, or undefined/null if verses are not yet loaded.
+ * @returns Vue Query result object containing a Map<verse_id, ccc_num[]>.
+ */
+export function useCatechismLinksForVerses(verseIdsRef: Ref<number[] | undefined | null>) {
+  return useQuery({
+    queryKey: ['cccLinks', computed(() => verseIdsRef.value?.join(',') ?? '')],
+    queryFn: async (): Promise<Map<number, number[]>> => {
+      const verseIds = verseIdsRef.value
+
+      if (!verseIds || verseIds.length === 0) {
+        console.debug(
+          '[useCatechismLinksForVerses queryFn] No verse IDs provided, returning empty map.',
+        )
+        return new Map()
+      }
+
+      console.debug(
+        `[useCatechismLinksForVerses queryFn] Fetching CCC links via RPC for ${verseIds.length} verse IDs.`,
+      )
+      const indexMap = await apiService.fetchCatechismLinksViaRpc(verseIds)
+      console.debug(
+        `[useCatechismLinksForVerses queryFn] Fetched CCC links via RPC. Found links for ${indexMap.size} verses.`,
+      )
+      return indexMap
+    },
+    enabled: computed(() => !!verseIdsRef.value && verseIdsRef.value.length > 0),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   })
 }

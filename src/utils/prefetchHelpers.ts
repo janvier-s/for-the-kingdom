@@ -5,25 +5,26 @@ import {
   fetchBookBySlug,
   fetchChaptersForBook,
   fetchAvailableVersions,
-  fetchVersesForChapter, // <-- Import verse fetcher
+  fetchVersesForChapter,
+  fetchCatechismIndexForVerseIds,
+  fetchCatechismLinksViaRpc,
 } from '@/services/apiService'
 import type { PrefetchOptions } from '@tanstack/vue-query'
+import type { BaseVerse } from '@/types' // Import BaseVerse if needed
 
 interface PrefetchHelperResult extends PrefetchOptions {}
 
 /**
  * Creates prefetch options for navigating to a Book Detail view.
- * It fetches the book details first, then uses the resulting book_id
- * to fetch the chapters list. Concurrently, it prefetches Bible versions.
- * Finally, it attempts to prefetch the verses for the *first chapter*
- * using a default version ID (assumed to be 1).
+ * Prefetches book details, chapters, versions, first chapter base verses,
+ * and the Catechism index for the first chapter's verses.
  *
  * @param bookSlug - The slug of the book to prefetch details for.
  * @returns An object containing queryKey, queryFn, and staleTime suitable for prefetch.
  */
 export function createBookPrefetchOptions(bookSlug: string): PrefetchHelperResult {
   const primaryQueryKey = ['book_detail', bookSlug]
-  const defaultVersionIdForPrefetch = 1 // Assume version 1 for verse prefetch
+  const defaultVersionIdForPrefetch = 1
 
   const combinedQueryFn = async () => {
     const queryClient = inject<QueryClient>(VUE_QUERY_CLIENT)
@@ -34,73 +35,76 @@ export function createBookPrefetchOptions(bookSlug: string): PrefetchHelperResul
 
     console.debug(`[Prefetch Helper] Running prefetch sequence for slug: ${bookSlug}`)
     try {
-      // --- Step 1: Fetch Book Details (Need Result for book_id) ---
+      // Step 1: Book Details
       const bookDetails = await queryClient.fetchQuery({
         queryKey: primaryQueryKey,
         queryFn: () => fetchBookBySlug(bookSlug),
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: 5 * 60 * 1000,
       })
 
       if (bookDetails?.book_id) {
         const bookId = bookDetails.book_id
-        console.debug(
-          `[Prefetch Helper]   Got bookId: ${bookId}. Fetching chapters & prefetching versions.`,
-        )
-
-        // --- Step 2a: Fetch Chapters (Need Result for first chapter_id) ---
-        // Use fetchQuery as we need the result immediately for verse prefetch
+        // Step 2a: Chapters
         const chaptersPromise = queryClient.fetchQuery({
           queryKey: ['chapters', bookId],
           queryFn: () => fetchChaptersForBook(bookId),
-          staleTime: 5 * 60 * 1000, // Keep chapters fresh too
+          staleTime: 5 * 60 * 1000,
         })
-
-        // --- Step 2b: Prefetch Versions (Run concurrently) ---
+        // Step 2b: Versions
         const versionsPromise = queryClient.prefetchQuery({
           queryKey: ['bible_versions'],
           queryFn: fetchAvailableVersions,
           staleTime: 10 * 60 * 1000,
         })
 
-        // Wait for chapters to be fetched
         const chapters = await chaptersPromise
 
-        // --- Step 3: Prefetch First Chapter Verses (If chapters loaded) ---
         if (chapters && chapters.length > 0) {
           const firstChapterId = chapters[0].chapter_id
-          console.debug(
-            `[Prefetch Helper]   Got first chapterId: ${firstChapterId}. Prefetching verses for default version ${defaultVersionIdForPrefetch}.`,
-          )
 
-          // Don't wait for this, just fire and forget
-          queryClient
-            .prefetchQuery({
-              queryKey: ['verses', firstChapterId, defaultVersionIdForPrefetch], // Key matches useVerses
-              queryFn: () => fetchVersesForChapter(firstChapterId, defaultVersionIdForPrefetch),
-              staleTime: 1 * 60 * 1000, // Keep verses fresh for 1 minute
+          // Step 3a: Prefetch Base Verses for the first chapter
+          // Use fetchQuery because we need the result (verse IDs) for the next step
+          const firstChapterVersesPromise = queryClient.fetchQuery({
+            queryKey: ['verseText', firstChapterId, defaultVersionIdForPrefetch],
+            queryFn: () => fetchVersesForChapter(firstChapterId, defaultVersionIdForPrefetch),
+            staleTime: 1 * 60 * 1000,
+          })
+
+          // Step 3b: Prefetch CCC Links via RPC
+          firstChapterVersesPromise
+            .then((baseVerses: BaseVerse[] | undefined) => {
+              if (baseVerses && baseVerses.length > 0) {
+                const verseIds = baseVerses.map((v) => v.verse_id)
+                console.debug(
+                  `[Prefetch Helper]   Prefetching CCC links via RPC for ${verseIds.length} verses.`,
+                )
+                queryClient
+                  .prefetchQuery({
+                    queryKey: ['cccLinks', verseIds.join(',')],
+                    queryFn: () => apiService.fetchCatechismLinksViaRpc(verseIds),
+                    staleTime: 5 * 60 * 1000,
+                  })
+                  .catch((err) => {
+                    console.warn(`[Prefetch Helper]   CCC links prefetch failed:`, err.message)
+                  })
+              }
             })
             .catch((err) => {
-              // Log verse prefetch errors but don't block anything
               console.warn(
-                `[Prefetch Helper]   Verse prefetch failed (this might be ok):`,
+                `[Prefetch Helper]   Base verse prefetch failed (needed for links):`,
                 err.message,
               )
             })
         } else {
-          console.debug(
-            `[Prefetch Helper]   No chapters found or chapters failed to load, skipping verse prefetch.`,
-          )
+          console.debug(`[Prefetch Helper]   No chapters found, skipping verse/link prefetch.`)
         }
-
-        // Optional: Wait for versions prefetch if needed elsewhere, but not strictly necessary here
-        await versionsPromise // Ensure versions are at least initiated
+        await versionsPromise
       } else {
         console.warn(
           `[Prefetch Helper]   Could not get book_id for slug ${bookSlug}, skipping secondary fetches.`,
         )
       }
-
-      return bookDetails // Return primary data
+      return bookDetails
     } catch (error) {
       console.error(`[Prefetch Helper] Error during prefetch sequence for slug ${bookSlug}:`, error)
       throw error
@@ -110,6 +114,6 @@ export function createBookPrefetchOptions(bookSlug: string): PrefetchHelperResul
   return {
     queryKey: primaryQueryKey,
     queryFn: combinedQueryFn,
-    staleTime: 60 * 1000, // Stale time for the overall prefetch action
+    staleTime: 60 * 1000,
   }
 }
