@@ -1,52 +1,31 @@
+// src/types/api.ts
+// REMOVE or MODIFY existing interfaces for Chapter, Verse, BaseVerse, CatechismBibleIndexEntry
+// ADD or MODIFY based on core_unit and new relationships
+
 /**
- * @file TypeScript interfaces for API data structures.
+ * @file TypeScript interfaces for API data structures reflecting the refactored schema.
  */
 
 export interface Language {
-  lang_id: number
+  id: number
   lang: string
-}
-
-export interface Testament {
-  testament_id: number
+  code: string
 }
 
 export interface TestamentTranslation {
-  testament_translation_id: number
   testament_id: number
   lang_id: number
   name: string
   slug: string
-  testaments?: Testament
-}
-
-export interface BookGenre {
-  genre_id: number
+  // Optional relation if needed, points to bible_testaments
+  // bible_testaments?: { id: number; canonical_identifier: string };
 }
 
 export interface GenreTranslation {
-  genre_translation_id: number
   genre_id: number
   lang_id: number
   name: string
   slug: string
-}
-
-export interface Book {
-  book_id: number
-  testament_id: number
-  genre_id: number | null
-  bible_order: number
-}
-
-export interface BookWithTranslation extends Book {
-  bible_book_translations: Array<{
-    book_translation_id: number
-    title: string
-    abbr: string
-    slug: string
-    lang_id: number
-  }>
 }
 
 export interface BookSummary {
@@ -55,50 +34,42 @@ export interface BookSummary {
   title: string
   abbr: string
   slug: string
+  cleaned_book_label: string
 }
 
-export interface Chapter {
-  chapter_id: number
-  book_id: number
-  chapter_number: number
+export interface BaseVerse {
+  id: number
+  unit_type: 'verse'
+  canonical_ref: string
+  sort_order: number
+  content_text: string | null
+  path: string
+}
+
+export interface Verse extends BaseVerse {
+  cccParagraphNumbers?: number[]
 }
 
 export interface Version {
-  version_id: number
+  id: number
   lang_id: number
   abbr: string
   full_name: string
 }
 
-export interface BaseVerse {
+export interface CccLinkResult {
   verse_id: number
-  chapter_id: number
-  version_id: number
-  verse_number: number
-  verse_text: string
-  reference_id: number | null
+  ccc_nums: number[] | null
 }
 
-export interface Verse extends BaseVerse {
-  cccParagraphIds?: number[]
-}
-
-export interface CatechismBibleIndexEntry {
-  link_id?: number
-  ccc_num: number
-  reference_id: number
-}
-
-export interface CatechismParagraph {
-  // ccc_num is the primary identifier based on schema
-  ccc_num: number
-  // Optional: paragraph_id might be a separate concept or PK of translations table
-  // paragraph_id?: number;
-  paragraph_number?: string // This might come from translations if needed
-  text?: string // This likely comes from translations
-  // Other structural IDs if available directly on this table (less likely)
-  // part_id?: number | null;
-  // section_id?: number | null;
-  // chapter_id?: number | null;
-  // article_id?: number | null;
+export interface CccParaViewData {
+  id: number
+  ccc_ref: string
+  ccc_number: number
+  content_text: string | null
+  content_html: string | null
+  lang_id: number
+  fts: any
+  bible_ref_ids: number[]
+  ccc_ref_ids: number[]
 }

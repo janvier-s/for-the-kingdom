@@ -1,119 +1,134 @@
 // src/utils/prefetchHelpers.ts
+// This needs significant updates due to changes in how chapters/verses are fetched
+
 import { inject } from 'vue'
 import { QueryClient, VUE_QUERY_CLIENT } from '@tanstack/vue-query'
-import {
-  fetchBookBySlug,
-  fetchChaptersForBook,
-  fetchAvailableVersions,
-  fetchVersesForChapter,
-  fetchCatechismIndexForVerseIds,
-  fetchCatechismLinksViaRpc,
-} from '@/services/apiService'
+import * as apiService from '@/services/apiService' // Import the updated service
 import type { PrefetchOptions } from '@tanstack/vue-query'
-import type { BaseVerse } from '@/types' // Import BaseVerse if needed
+import type { BaseVerse, Version } from '@/types' // Import updated types
 
-interface PrefetchHelperResult extends PrefetchOptions {}
+// Helper to find version code, defaulting to ID 1 if available
+function getDefaultVersionCode(versions: Version[] | null | undefined): string | null {
+  if (!versions || versions.length === 0) return null
+  // Assuming version ID 1 is the default/preferred (e.g., Vulgata Latina)
+  const defaultVersion = versions.find((v) => v.id === 1) || versions[0]
+  return defaultVersion.abbr // Use the abbreviation as the code
+}
 
 /**
  * Creates prefetch options for navigating to a Book Detail view.
- * Prefetches book details, chapters, versions, first chapter base verses,
- * and the Catechism index for the first chapter's verses.
+ * Prefetches book details, versions, first chapter number, first chapter base verses,
+ * and the Catechism links for the first chapter's verses.
  *
  * @param bookSlug - The slug of the book to prefetch details for.
  * @returns An object containing queryKey, queryFn, and staleTime suitable for prefetch.
  */
-export function createBookPrefetchOptions(bookSlug: string): PrefetchHelperResult {
+export function createBookPrefetchOptions(bookSlug: string): PrefetchOptions {
   const primaryQueryKey = ['book_detail', bookSlug]
-  const defaultVersionIdForPrefetch = 1
 
   const combinedQueryFn = async () => {
     const queryClient = inject<QueryClient>(VUE_QUERY_CLIENT)
     if (!queryClient) {
       console.warn('[Prefetch Helper] QueryClient not available.')
-      return null
+      return null // Cannot proceed without client
     }
 
     console.debug(`[Prefetch Helper] Running prefetch sequence for slug: ${bookSlug}`)
     try {
-      // Step 1: Book Details
+      // Prefetch Versions first, as we need the code
+      const versions = await queryClient.fetchQuery<Version[]>({
+        queryKey: ['bible_versions'],
+        queryFn: apiService.fetchAvailableVersions,
+        staleTime: 10 * 60 * 1000,
+      })
+
+      const defaultVersionCode = getDefaultVersionCode(versions)
+      if (!defaultVersionCode) {
+        console.warn(
+          `[Prefetch Helper] Could not determine default version code, stopping prefetch.`,
+        )
+        return null
+      }
+      // Use default Version ID 1 for verse prefetch target
+      const defaultVersionId = versions?.find((v) => v.abbr === defaultVersionCode)?.id ?? null
+      if (!defaultVersionId) {
+        console.warn(`[Prefetch Helper] Could not determine default version ID, stopping prefetch.`)
+        return null
+      }
+
+      // Step 1: Book Details (provides book_id and cleaned_book_label)
       const bookDetails = await queryClient.fetchQuery({
         queryKey: primaryQueryKey,
-        queryFn: () => fetchBookBySlug(bookSlug),
+        queryFn: () => apiService.fetchBookBySlug(bookSlug), // Returns { book_id, title, cleaned_book_label }
         staleTime: 5 * 60 * 1000,
       })
 
-      if (bookDetails?.book_id) {
+      if (bookDetails?.book_id && bookDetails?.cleaned_book_label) {
         const bookId = bookDetails.book_id
-        // Step 2a: Chapters
-        const chaptersPromise = queryClient.fetchQuery({
-          queryKey: ['chapters', bookId],
-          queryFn: () => fetchChaptersForBook(bookId),
-          staleTime: 5 * 60 * 1000,
-        })
-        // Step 2b: Versions
-        const versionsPromise = queryClient.prefetchQuery({
-          queryKey: ['bible_versions'],
-          queryFn: fetchAvailableVersions,
+        const bookLabel = bookDetails.cleaned_book_label
+
+        // Step 2: Fetch Chapter Numbers
+        const chapterNumbers = await queryClient.fetchQuery({
+          queryKey: ['chapter_numbers', bookId, bookLabel, defaultVersionCode],
+          queryFn: () => apiService.fetchChaptersForBook(bookId, bookLabel, defaultVersionCode),
           staleTime: 10 * 60 * 1000,
         })
 
-        const chapters = await chaptersPromise
+        if (chapterNumbers && chapterNumbers.length > 0) {
+          const firstChapterNumber = chapterNumbers[0]
 
-        if (chapters && chapters.length > 0) {
-          const firstChapterId = chapters[0].chapter_id
-
-          // Step 3a: Prefetch Base Verses for the first chapter
-          // Use fetchQuery because we need the result (verse IDs) for the next step
-          const firstChapterVersesPromise = queryClient.fetchQuery({
-            queryKey: ['verseText', firstChapterId, defaultVersionIdForPrefetch],
-            queryFn: () => fetchVersesForChapter(firstChapterId, defaultVersionIdForPrefetch),
-            staleTime: 1 * 60 * 1000,
+          // Step 3: Prefetch Base Verses for the first chapter
+          const firstChapterVerses = await queryClient.fetchQuery<BaseVerse[]>({
+            queryKey: ['verseText', bookLabel, firstChapterNumber, defaultVersionCode],
+            queryFn: () =>
+              apiService.fetchVersesForChapter(bookLabel, firstChapterNumber, defaultVersionCode),
+            staleTime: 5 * 60 * 1000,
           })
 
-          // Step 3b: Prefetch CCC Links via RPC
-          firstChapterVersesPromise
-            .then((baseVerses: BaseVerse[] | undefined) => {
-              if (baseVerses && baseVerses.length > 0) {
-                const verseIds = baseVerses.map((v) => v.verse_id)
-                console.debug(
-                  `[Prefetch Helper]   Prefetching CCC links via RPC for ${verseIds.length} verses.`,
-                )
-                queryClient
-                  .prefetchQuery({
-                    queryKey: ['cccLinks', verseIds.join(',')],
-                    queryFn: () => apiService.fetchCatechismLinksViaRpc(verseIds),
-                    staleTime: 5 * 60 * 1000,
-                  })
-                  .catch((err) => {
-                    console.warn(`[Prefetch Helper]   CCC links prefetch failed:`, err.message)
-                  })
-              }
-            })
-            .catch((err) => {
-              console.warn(
-                `[Prefetch Helper]   Base verse prefetch failed (needed for links):`,
-                err.message,
-              )
-            })
+          // Step 4: If verses were fetched, prefetch their CCC Links
+          if (firstChapterVerses && firstChapterVerses.length > 0) {
+            const verseIds = firstChapterVerses.map((v) => v.id) // Use the new 'id' field
+            console.debug(
+              `[Prefetch Helper]   Prefetching CCC links via RPC for ${verseIds.length} verses from Ch ${firstChapterNumber}.`,
+            )
+            await queryClient
+              .prefetchQuery({
+                // Ensure key matches the one used in useCatechismLinksForVerses
+                queryKey: ['cccLinks', verseIds.sort((a, b) => a - b).join(',')],
+                queryFn: () => apiService.fetchCatechismLinksViaRpc(verseIds),
+                staleTime: 5 * 60 * 1000,
+              })
+              .catch((err) => {
+                console.warn(`[Prefetch Helper]   CCC links prefetch failed:`, err?.message ?? err)
+              })
+          } else {
+            console.debug(
+              `[Prefetch Helper]   No verses found for Ch ${firstChapterNumber}, skipping CCC link prefetch.`,
+            )
+          }
         } else {
-          console.debug(`[Prefetch Helper]   No chapters found, skipping verse/link prefetch.`)
+          console.debug(
+            `[Prefetch Helper]   No chapters found for book ${bookLabel}, skipping verse/link prefetch.`,
+          )
         }
-        await versionsPromise
       } else {
         console.warn(
-          `[Prefetch Helper]   Could not get book_id for slug ${bookSlug}, skipping secondary fetches.`,
+          `[Prefetch Helper] Could not get book_id/label for slug ${bookSlug}, skipping secondary fetches.`,
         )
       }
-      return bookDetails
-    } catch (error) {
-      console.error(`[Prefetch Helper] Error during prefetch sequence for slug ${bookSlug}:`, error)
-      throw error
+      return bookDetails // Return primary data
+    } catch (error: any) {
+      console.error(
+        `[Prefetch Helper] Error during prefetch sequence for slug ${bookSlug}:`,
+        error?.message ?? error,
+      )
+      throw error // Re-throw
     }
   }
 
   return {
     queryKey: primaryQueryKey,
     queryFn: combinedQueryFn,
-    staleTime: 60 * 1000,
+    staleTime: 60 * 1000, // Stale time for the combined operation trigger
   }
 }

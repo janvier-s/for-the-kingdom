@@ -1,93 +1,113 @@
+<!-- src/views/BookDetailView.vue -->
 <template>
   <div class="book-detail-view container">
     <header class="view-header book-header">
+      <!-- Book Loading/Error -->
       <BaseLoadingIndicator v-if="isLoadingBook" message="Loading book details..." />
       <BaseErrorMessage v-if="isErrorBook" :message="errorBook?.message" />
 
-      <template v-if="!isLoadingBook && !isErrorBook && bookTitle">
-        <h1>{{ bookTitle }}</h1>
+      <template v-if="bookDetails">
+        <h1>{{ bookDetails.title }}</h1>
 
+        <!-- Version Loading/Error/Selection -->
         <BaseLoadingIndicator v-if="isLoadingVersions" message="Loading versions..." />
         <BaseErrorMessage v-if="isErrorVersions" :message="errorVersions?.message" />
-        <div v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length > 1" class="version-selector">
+        <div v-if="versions && versions.length > 1" class="version-selector">
           <label for="versionSelect">Version:</label>
           <select id="versionSelect" v-model="selectedVersionId">
             <option :value="null" disabled>Select Version</option>
-            <option v-for="version in versions" :key="version.version_id" :value="version.version_id">
+            <!-- Use version.id for the value -->
+            <option v-for="version in versions" :key="version.id" :value="version.id">
               {{ version.abbr }} ({{ version.full_name }})
             </option>
           </select>
         </div>
-        <p v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length === 1" class="single-version">
+        <p v-if="versions && versions.length === 1" class="single-version">
+          <!-- Use version.id for the key -->
           Version: {{ versions[0].abbr }}
         </p>
-        <p v-if="!isLoadingVersions && !isErrorVersions && versions && versions.length === 0" class="no-results">
+        <p v-if="!isLoadingVersions && !isErrorVersions && (!versions || versions.length === 0)" class="no-results">
           No Bible versions found.
         </p>
       </template>
-      <h1 v-if="!isLoadingBook && !isErrorBook && !bookTitle">Book Not Found</h1>
+      <h1 v-if="!isLoadingBook && !isErrorBook && !bookDetails">Book Not Found</h1>
     </header>
 
-    <main v-if="bookId && selectedVersionId">
+    <!-- Main content requires book, version, and chapter to be selected/loaded -->
+    <main v-if="bookDetails && selectedVersionCode && chapterNumbers !== undefined">
+
+      <!-- Chapter Loading/Error/Navigation -->
       <BaseLoadingIndicator v-if="isLoadingChapters" message="Loading chapters..." />
       <BaseErrorMessage v-if="isErrorChapters" :message="errorChapters?.message" />
-      <nav v-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length > 1" class="chapter-nav">
-        <button @click="changeChapter(-1)" :disabled="selectedChapterNumber <= 1" aria-label="Previous Chapter">
+      <nav v-if="chapterNumbers && chapterNumbers.length > 1" class="chapter-nav">
+        <button @click="changeChapter(-1)"
+          :disabled="!selectedChapterNumber || selectedChapterNumber <= chapterNumbers[0]"
+          aria-label="Previous Chapter">
           < Prev </button>
             <span role="status" aria-live="polite">
-              Chapter {{ selectedChapterNumber }} of {{ chapters.length }}
+              Chapter {{ selectedChapterNumber ?? '...' }} of {{ chapterNumbers.length }}
             </span>
-            <button @click="changeChapter(1)" :disabled="selectedChapterNumber >= chapters.length"
+            <button @click="changeChapter(1)"
+              :disabled="!selectedChapterNumber || selectedChapterNumber >= chapterNumbers[chapterNumbers.length - 1]"
               aria-label="Next Chapter">
               Next >
             </button>
       </nav>
-      <h2 v-else-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length === 1"
-        class="single-chapter-heading">
-        Chapter {{ selectedChapterNumber }}
+      <h2 v-else-if="chapterNumbers && chapterNumbers.length === 1" class="single-chapter-heading">
+        Chapter {{ chapterNumbers[0] }}
       </h2>
-      <p v-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length === 0" class="no-results">
-        No chapters found for this book.
+      <p v-if="!isLoadingChapters && !isErrorChapters && chapterNumbers && chapterNumbers.length === 0"
+        class="no-results">
+        No chapters found for this book in the selected version.
       </p>
 
-      <div v-if="selectedChapterId" class="content-area">
-        <!-- Show combined loading indicator -->
-        <BaseLoadingIndicator v-if="isLoadingVersesCombined" message="Loading content..." />
-        <!-- Show combined error message -->
+      <!-- Verse Loading/Error/Display -->
+      <div v-if="selectedChapterNumber" class="content-area">
+        <!-- Combined loading indicator -->
+        <BaseLoadingIndicator v-if="isLoadingVersesCombinedDelayed" message="Loading content..." />
+        <!-- Combined error message -->
         <BaseErrorMessage v-if="combinedVerseError" :message="combinedVerseError" />
 
         <div v-if="!isLoadingVersesCombined && !combinedVerseError && versesWithLinks && versesWithLinks.length > 0"
           class="verses-container">
-          <!-- Iterate over the computed versesWithLinks -->
-          <p v-for="verse in versesWithLinks" :key="verse.verse_id" class="verse">
-            <sup :id="`v${selectedChapterNumber}-${verse.verse_number}`">{{ verse.verse_number }}</sup>
-            {{ verse.verse_text }}
-            <!-- CCC Link Indicator (logic remains the same, uses verse.cccParagraphIds) -->
-            <span v-if="verse.cccParagraphIds && verse.cccParagraphIds.length > 0" class="ccc-link-indicator"
-              :title="`Links to CCC: ${verse.cccParagraphIds.join(', ')}`" role="link" tabindex="0"
-              @click="showCatechismLinks(verse.cccParagraphIds)"
-              @keydown.enter="showCatechismLinks(verse.cccParagraphIds)"
-              @keydown.space.prevent="showCatechismLinks(verse.cccParagraphIds)">
+          <!-- Iterate over versesWithLinks -->
+          <p v-for="verse in versesWithLinks" :key="verse.id" class="verse">
+            <!-- Use sort_order for verse number, id for key -->
+            <sup :id="`v${selectedChapterNumber}-${verse.sort_order}`">{{ verse.sort_order }}</sup>
+            {{ verse.content_text }}
+            <!-- Use verse.cccParagraphNumbers -->
+            <span v-if="verse.cccParagraphNumbers && verse.cccParagraphNumbers.length > 0" class="ccc-link-indicator"
+              :title="`Links to CCC: ${verse.cccParagraphNumbers.join(', ')}`" role="link" tabindex="0"
+              @click="showCatechismLinks(verse.cccParagraphNumbers)"
+              @keydown.enter="showCatechismLinks(verse.cccParagraphNumbers)"
+              @keydown.space.prevent="showCatechismLinks(verse.cccParagraphNumbers)">
               [CCC]
             </span>
           </p>
         </div>
-        <p v-if="!isLoadingVersesCombined && !combinedVerseError && versesWithLinks && versesWithLinks.length === 0 && chapters && chapters.length > 0"
+        <p v-if="!isLoadingVersesCombined && !combinedVerseError && versesWithLinks && versesWithLinks.length === 0 && chapterNumbers && chapterNumbers.length > 0"
           class="no-results">
-          No verses found for Chapter {{ selectedChapterNumber }} in the selected version.
+          No verses found for Chapter {{ selectedChapterNumber }} in {{ selectedVersionCode }}.
         </p>
       </div>
-      <div v-else-if="!isLoadingChapters && !isErrorChapters && chapters && chapters.length > 0">
+      <div v-else-if="!isLoadingChapters && !isErrorChapters && chapterNumbers && chapterNumbers.length > 0">
         <p class="no-results">Select a chapter.</p>
       </div>
 
     </main>
-    <div v-else-if="!isLoadingBook && !isErrorBook && !bookId">
-      <p class="no-results">Could not determine book details to load content.</p>
+
+    <!-- Fallback messages -->
+    <div v-else-if="!isLoadingBook && !isErrorBook && !bookDetails">
+      <p class="no-results">Could not load book details.</p>
     </div>
     <div v-else-if="!isLoadingVersions && !isErrorVersions && !selectedVersionId && versions && versions.length > 0">
-      <p class="no-results">Please select a Bible version to view content.</p>
+      <p class="no-results">Please select a Bible version.</p>
     </div>
+    <div
+      v-else-if="bookDetails && selectedVersionCode && chapterNumbers === undefined && !isLoadingChapters && !isErrorChapters">
+      <p class="no-results">Could not load chapter list.</p>
+    </div>
+
   </div>
 </template>
 
@@ -97,15 +117,13 @@ import { useDelayedTrueState } from '@/composables/useDelayedState';
 import {
   useBookDetails,
   useBibleVersions,
-  useChapters,
+  useChapterNumbers,
   useVerseText,
   useCatechismLinksForVerses,
 } from '@/composables/useBibleData';
 import BaseLoadingIndicator from '@/components/BaseLoadingIndicator.vue';
 import BaseErrorMessage from '@/components/BaseErrorMessage.vue';
-import type { Chapter, Version, Verse } from '@/types';
-type BaseVerse = Omit<Verse, 'cccParagraphIds'>;
-
+import type { Version, Verse, BaseVerse } from '@/types';
 
 interface Props {
   bookSlug: string;
@@ -116,38 +134,61 @@ const bookSlugRef = computed(() => props.bookSlug);
 
 // --- Local State Refs ---
 const selectedVersionId = ref<number | null>(null);
-const selectedChapterId = ref<number | null>(null);
-const selectedChapterNumber = ref<number>(1);
+const selectedChapterNumber = ref<number | null>(null);
 
 // --- Composables (Vue Query) ---
 
-// 1. Fetch Book Details
+// 1. Fetch Book Details -> provides id, title, cleaned_book_label
 const {
-  data: bookDetailsData,
-  isLoading: isLoadingBookRaw,
+  data: bookDetails,
+  isLoading: isLoadingBook,
   isError: isErrorBook,
   error: errorBook
 } = useBookDetails(bookSlugRef as Ref<string | undefined>);
-
-// Computed properties dependent on bookDetailsData
-const bookTitle = computed(() => bookDetailsData.value?.title ?? '');
-const bookId = computed(() => bookDetailsData.value?.book_id ?? null);
+const bookId = computed(() => bookDetails.value?.book_id ?? null);
+const bookLabel = computed(() => bookDetails.value?.cleaned_book_label ?? null);
 
 // 2. Fetch Available Versions
 const {
   data: versions,
-  isLoading: isLoadingVersionsRaw,
+  isLoading: isLoadingVersions,
   isError: isErrorVersions,
   error: errorVersions
 } = useBibleVersions();
+const selectedVersionCode = computed(() => {
+  if (!selectedVersionId.value || !versions.value) return null;
+  return versions.value.find(v => v.id === selectedVersionId.value)?.abbr ?? null;
+});
+console.log(`%c[BookDetailView setup] Initial values before useChapterNumbers:`, 'background: #eee; color: #333');
+console.log(`  -> bookId.value: ${bookId.value} (type: ${typeof bookId.value})`);
+console.log(`  -> bookLabel.value: ${bookLabel.value} (type: ${typeof bookLabel.value})`);
+console.log(`  -> selectedVersionCode.value: ${selectedVersionCode.value} (type: ${typeof selectedVersionCode.value})`);
 
-// 3. Fetch Chapters
+watch(bookId, (val) => console.log(`bookId changed to: ${val}`));
+watch(bookLabel, (val) => console.log(`bookLabel changed to: ${val}`));
+watch(selectedVersionCode, (val) => console.log(`selectedVersionCode changed to: ${val}`));
+
+// 3. Fetch Chapter Numbers (NEW)
 const {
-  data: chapters,
-  isLoading: isLoadingChaptersRaw,
+  data: chapterNumbers,
+  isLoading: isLoadingChapters,
   isError: isErrorChapters,
-  error: errorChapters
-} = useChapters(bookId);
+  error: errorChapters,
+  status: chapterStatus
+} = useChapterNumbers(bookId, bookLabel, selectedVersionCode);
+
+watch([bookLabel, selectedChapterNumber, selectedVersionCode], ([label, chapNum, verCode]) => {
+  console.log(`%c[Verse Trigger Check] bookLabel: ${label}, chapter: ${chapNum}, version: ${verCode}`, 'color: blue');
+}, { immediate: true });
+
+watch(chapterStatus, (status) => {
+  console.log(`%c[Chapter Fetch Status]: ${status}`, 'color: brown');
+  if (status === 'error') {
+    console.error('%c[Chapter Fetch Status] Error:', 'color: red;', errorChapters.value?.message);
+  } else if (status === 'success') {
+    console.log('%c[Chapter Fetch Status] Success, data:', 'color: brown', chapterNumbers.value);
+  }
+});
 
 // 4a. Fetch Base Verse Text
 const {
@@ -156,155 +197,132 @@ const {
   isError: isErrorVerseText,
   error: errorVerseText,
   status: verseTextStatus,
-} = useVerseText(selectedChapterId, selectedVersionId);
+} = useVerseText(bookLabel, selectedChapterNumber, selectedVersionCode);
 
-// 4b. Extract Verse IDs
-const verseIdsForLinks = computed(() => baseVerses.value?.map(v => v.verse_id));
+watch(verseTextStatus, (status) => {
+  if (status === 'success') {
+    console.log('%c[Verse Fetch Status] Raw baseVerses data:', 'color: orange', JSON.parse(JSON.stringify(baseVerses.value ?? [])));
+  } else if (status === 'error') {
+    console.error('%c[Verse Fetch Status] Error:', 'color: red; font-weight: bold;', errorVerseText.value?.message);
+  }
+})
 
-// 4c. Fetch CCC Links
+// 4b. Extract Verse IDs (use verse.id)
+const verseIdsForLinks = computed(() => baseVerses.value?.map(v => v.id));
+
+// 4c. Fetch CCC Links (uses verse.id)
 const {
   data: cccLinksMap,
   isLoading: isLoadingCccLinksRaw,
   isError: isErrorCccLinks,
   error: errorCccLinks,
-  status: cccLinksStatus,
 } = useCatechismLinksForVerses(verseIdsForLinks);
 
 
 // --- Combined Loading/Error/Data State ---
 
-// Combined loading state specifically for the verse content area
 const isLoadingVersesCombined = computed(() => {
+  // Considered loading if verse text is loading OR if links are expected and loading
   const linksShouldLoad = !!verseIdsForLinks.value && verseIdsForLinks.value.length > 0;
-  // True if verse text is loading OR if links are expected and loading
   return isLoadingVerseTextRaw.value || (linksShouldLoad && isLoadingCccLinksRaw.value);
 });
+// Apply delay only to the combined loading state for verses
+const isLoadingVersesCombinedDelayed = useDelayedTrueState(isLoadingVersesCombined, 600);
 
-const isLoadingVersesDelayed = useDelayedTrueState(isLoadingVersesCombined, 750);
 
-// Combined error prioritizing prerequisite data errors
 const combinedVerseError = computed(() => {
-  if (isErrorBook.value) return errorBook.value?.message ?? 'Failed to load book details.';
-  if (isErrorChapters.value) return errorChapters.value?.message ?? 'Failed to load chapters.';
-  if (isErrorVerseText.value) return errorVerseText.value?.message ?? 'Failed to load verses.';
-  if (isErrorCccLinks.value) return errorCccLinks.value?.message ?? 'Failed to load Catechism links.';
+  // Prioritize errors: Book -> Version -> Chapter -> Verse Text -> CCC Links
+  if (isErrorBook.value) return `Book Error: ${errorBook.value?.message}`;
+  if (isErrorVersions.value) return `Version Error: ${errorVersions.value?.message}`;
+  if (isErrorChapters.value) return `Chapter Error: ${errorChapters.value?.message}`;
+  if (isErrorVerseText.value) return `Verse Error: ${errorVerseText.value?.message}`;
+  if (isErrorCccLinks.value) return `Link Error: ${errorCccLinks.value?.message}`;
   return null;
 });
-
 
 // 4d. Merge Base Verses and Links
 const versesWithLinks = computed((): Verse[] => {
   if (!baseVerses.value) return [];
+  const linkMap = cccLinksMap.value;
   return baseVerses.value.map(baseVerse => {
-    const linkedIds = cccLinksMap.value?.get(baseVerse.verse_id);
+    const linkedIds = linkMap?.get(baseVerse.id);
     return {
       ...baseVerse,
-      ...(linkedIds && linkedIds.length > 0 && { cccParagraphIds: linkedIds }),
+      // Use cccParagraphNumbers to match type definition
+      ...(linkedIds && linkedIds.length > 0 && { cccParagraphNumbers: linkedIds }),
     };
   });
 });
+watch(chapterNumbers, (nums) => {
+  console.log('Chapter Numbers Loaded:', nums);
+})
 
+watch(versesWithLinks, (newVal) => {
+  console.log(`%c[Verse Watcher] Merged versesWithLinks updated. Length: ${newVal?.length ?? 0}`, 'color: green; font-weight: bold;');
+  // Optional: Log the actual data if length is small
+  // if (newVal && newVal.length < 10) {
+  //    console.log('%c[Verse Watcher] Data:', 'color: green;', JSON.parse(JSON.stringify(newVal)));
+  // }
+}, { deep: true });
 // --- Watchers and Logic ---
 
-// Set default/initial version once versions load
+// Set default version (ID 1) or first available
 watch(versions, (newVersions) => {
-  console.log('[Watcher versions] Running. newVersions:', newVersions, 'selectedVersionId currently:', selectedVersionId.value);
-
-  // Only proceed if versions are loaded, there are versions, and none is selected yet
-  if (newVersions && newVersions.length > 0 && !selectedVersionId.value) {
-    console.log('[Watcher versions] Conditions met: Has new versions, length > 0, none selected yet.');
-    console.log('[Watcher versions] Available versions:', JSON.parse(JSON.stringify(newVersions)));
-
-    // Find the version to select: Prioritize ID 1, otherwise take the first.
-    let versionToSelect: Version | undefined = newVersions.find(v => v.version_id === 1) || newVersions[0];
-
-    // Set the selected ID if we found a version to select
-    if (versionToSelect) {
-      console.log(`[Watcher versions] Selecting version: ${versionToSelect.abbr} (ID: ${versionToSelect.version_id}).`);
-      selectedVersionId.value = versionToSelect.version_id;
-    } else {
-      // This case should theoretically not happen if newVersions.length > 0
-      console.warn('[Watcher versions] Could not determine a version to select, though versions array is not empty.');
-    }
-  } else {
-    console.log('[Watcher versions] Conditions NOT met or version already selected.');
-    // Optional: Log specific reasons why conditions weren't met
-    // console.log('[Watcher versions] Details:', { hasNewVersions: !!newVersions, length: newVersions?.length, isSelected: !!selectedVersionId.value });
+  if (newVersions && newVersions.length > 0 && selectedVersionId.value === null) {
+    // Prioritize version with id=1, otherwise take the first one
+    const defaultVersion = newVersions.find(v => v.id === 1) || newVersions[0];
+    selectedVersionId.value = defaultVersion.id;
+    console.debug(`[Watcher versions] Auto-selected version ID: ${selectedVersionId.value}`);
   }
 }, { immediate: true });
 
-// --- ADD LOGGING FOR VERSES ---
-// Set initial/current chapter once chapters load
-watch(chapters, (newChapters) => {
-  if (newChapters && newChapters.length > 0) {
-    // Find chapter matching selectedChapterNumber OR default to first chapter
-    const targetChapter = newChapters.find(ch => ch.chapter_number === selectedChapterNumber.value) || newChapters[0];
-    if (targetChapter && targetChapter.chapter_id !== selectedChapterId.value) {
-      console.debug(`Setting current chapter: ${targetChapter.chapter_number} (ID: ${targetChapter.chapter_id})`);
-      selectedChapterId.value = targetChapter.chapter_id;
-      selectedChapterNumber.value = targetChapter.chapter_number; // Ensure consistency
-    } else if (!targetChapter) {
-      console.warn("Could not find target chapter.");
-      selectedChapterId.value = null; // Reset if no chapter found
-    }
+// Set initial chapter when chapter numbers load
+watch(chapterNumbers, (newChapters) => {
+  if (newChapters && newChapters.length > 0 && selectedChapterNumber.value === null) {
+    // Select the first chapter number from the list
+    selectedChapterNumber.value = newChapters[0];
+    console.debug(`[Watcher chapterNumbers] Auto-selected chapter: ${selectedChapterNumber.value}`);
   }
-  // Reset chapter if chapters become empty/undefined (e.g., book changes)
-  else if (!newChapters || newChapters.length === 0) {
-    selectedChapterId.value = null;
-    selectedChapterNumber.value = 1; // Reset to default
+  // Reset if chapter list becomes empty/invalid while a chapter was selected
+  else if ((!newChapters || newChapters.length === 0) && selectedChapterNumber.value !== null) {
+    console.debug("[Watcher chapterNumbers] Chapter list empty/invalid, resetting selection.");
+    selectedChapterNumber.value = null;
   }
-}, { immediate: true }); // Check immediately when chapters data arrives
+}, { immediate: true });
 
-// Reset chapter selection if book changes
-watch(bookId, (newBookId, oldBookId) => {
-  // Prevent reset on initial load if bookId is already set
-  if (newBookId !== oldBookId) {
-    console.debug("Book ID changed, resetting chapter selection.");
-    selectedChapterId.value = null;
-    selectedChapterNumber.value = 1;
-  }
+// Reset chapter selection if book or version changes
+watch([bookId, selectedVersionId], () => {
+  console.debug("[Watcher book/version] Resetting chapter selection.");
+  selectedChapterNumber.value = null; // Reset chapter, which will trigger re-fetch or auto-select
 });
 
-// Watch the status of the CCC links fetch
-watch(cccLinksStatus, (status) => {
-  console.log(`%c[CCCLinks Watcher] Status: ${status}`, 'color: purple;');
-  // Optional: Log data/error on status change
-  if (status === 'success') {
-    console.log(`%c[CCCLinks Watcher] Data (Map):`, 'color: purple;', cccLinksMap.value); // Map doesn't need stringify usually
-  } else if (status === 'error') {
-    console.error(`%c[CCCLinks Watcher] Error:`, 'color: red; font-weight: bold;', errorCccLinks.value?.message);
-  }
-});
-// Watch the final computed/merged data
+// Optional: Add logging for debugging state changes
+watch(selectedChapterNumber, (newVal) => console.log(`Selected Chapter Number: ${newVal}`));
+watch(selectedVersionId, (newVal) => console.log(`Selected Version ID: ${newVal}`));
 watch(versesWithLinks, (newVal) => {
-  console.log('%c[Verse Watcher] Merged versesWithLinks updated:', 'color: green; font-weight: bold;', JSON.parse(JSON.stringify(newVal ?? [])));
-  const countWithLinks = newVal?.filter(v => v.cccParagraphIds && v.cccParagraphIds.length > 0).length ?? 0;
-  console.log(`%c[Verse Watcher]   ${countWithLinks} verses have CCC links.`, 'color: green;');
-}, { deep: true }); // deep might be necessary if Vue doesn't pick up changes within the computed array otherwise
+  console.log(`%c[Verse Watcher] Merged versesWithLinks updated (${newVal?.length ?? 0} items)`, 'color: green; font-weight: bold;');
+}, { deep: true });
+
 
 // --- Methods ---
-const showCatechismLinks = (paragraphIds: number[] | undefined) => {
-  if (!paragraphIds) return;
-  console.log('Clicked CCC Link Indicator. Linked Paragraph IDs:', paragraphIds);
-  alert(`Linked Catechism Paragraphs:\n${paragraphIds.join('\n')}`);
+const showCatechismLinks = (paragraphNumbers: number[] | undefined) => {
+  if (!paragraphNumbers) return;
+  alert(`Linked Catechism Paragraphs (Numbers):\n${paragraphNumbers.join('\n')}`);
 };
 
 const changeChapter = (direction: 1 | -1) => {
-  if (!chapters.value || chapters.value.length <= 1) return;
-  const currentIdx = chapters.value.findIndex(ch => ch.chapter_id === selectedChapterId.value);
-  if (currentIdx === -1 && chapters.value.length > 0) {
-    const newChapter = chapters.value[0];
-    console.warn("Current chapter ID not found, resetting to first chapter.");
-    selectedChapterId.value = newChapter.chapter_id;
-    selectedChapterNumber.value = newChapter.chapter_number;
-    return;
+  if (!chapterNumbers.value || chapterNumbers.value.length === 0 || selectedChapterNumber.value === null) return;
+
+  const currentIndex = chapterNumbers.value.indexOf(selectedChapterNumber.value);
+  if (currentIndex === -1) {
+    console.warn("Current chapter not found in list, cannot navigate.");
+    return; // Should not happen if state is consistent
   }
-  const newIdx = currentIdx + direction;
-  if (newIdx >= 0 && newIdx < chapters.value.length) {
-    const newChapter = chapters.value[newIdx];
-    console.debug(`Changing chapter to: ${newChapter.chapter_number} (ID: ${newChapter.chapter_id})`);
-    selectedChapterId.value = newChapter.chapter_id;
-    selectedChapterNumber.value = newChapter.chapter_number;
+
+  const newIndex = currentIndex + direction;
+  if (newIndex >= 0 && newIndex < chapterNumbers.value.length) {
+    selectedChapterNumber.value = chapterNumbers.value[newIndex];
+    console.debug(`Changed chapter to: ${selectedChapterNumber.value}`);
   }
 };
 
@@ -350,7 +368,6 @@ const changeChapter = (direction: 1 | -1) => {
   color: var(--text-secondary);
   margin: 0;
 }
-
 
 main {
   margin-top: var(--spacing-lg);
@@ -404,6 +421,8 @@ main {
 
 .content-area {
   margin-top: var(--spacing-lg);
+  min-height: 200px;
+  position: relative;
 }
 
 .verses-container {
@@ -429,5 +448,38 @@ main {
   color: var(--text-secondary);
   margin-top: var(--spacing-xl);
   font-style: italic;
+}
+
+.ccc-link-indicator {
+  margin-left: 8px;
+  color: var(--text-link);
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: bold;
+  user-select: none;
+  /* Prevent text selection */
+  display: inline-block;
+  /* Allows transform */
+  transition: transform 0.1s ease-out;
+}
+
+.ccc-link-indicator:hover {
+  text-decoration: underline;
+  transform: scale(1.1);
+}
+
+.ccc-link-indicator:focus {
+  outline: 1px dotted var(--text-link);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.content-area .loading-indicator {
+  /* position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); */
+  margin-top: var(--spacing-xl);
+  /* Simpler margin approach */
 }
 </style>

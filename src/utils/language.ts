@@ -1,23 +1,9 @@
-/**
- * @file Language related utility functions.
- */
+// src/utils/language.ts
 import supabase from '@/supabase'
 import { DEFAULT_LANGUAGE_NAME } from '@/constants'
 
-// Simple in-memory cache for language IDs
 const languageIdCache: Record<string, number> = {}
 
-/**
- * Retrieves the language ID for a given language name from Supabase.
- * Caches the result in memory to avoid redundant database calls.
- *
- * @param langName - The name of the language (e.g., "Français"). Defaults to DEFAULT_LANGUAGE_NAME.
- * @returns A promise that resolves with the language ID.
- * @throws If the language is not found or if there's a database error.
- * @example
- * const frenchId = await getLanguageId();
- * const englishId = await getLanguageId('English');
- */
 export const getLanguageId = async (langName: string = DEFAULT_LANGUAGE_NAME): Promise<number> => {
   if (languageIdCache[langName]) {
     return languageIdCache[langName]
@@ -27,7 +13,7 @@ export const getLanguageId = async (langName: string = DEFAULT_LANGUAGE_NAME): P
   try {
     const { data, error } = await supabase
       .from('languages')
-      .select('lang_id')
+      .select('id')
       .eq('lang', langName)
       .single()
 
@@ -39,12 +25,11 @@ export const getLanguageId = async (langName: string = DEFAULT_LANGUAGE_NAME): P
       throw new Error(`Language '${langName}' not found in the database.`)
     }
 
-    console.debug(`Found language ID for ${langName}: ${data.lang_id}`)
-    languageIdCache[langName] = data.lang_id
-    return data.lang_id
+    console.debug(`Found language ID for ${langName}: ${data.id}`)
+    languageIdCache[langName] = data.id
+    return data.id
   } catch (err) {
     console.error(`Error in getLanguageId for ${langName}:`, err)
-    // Re-throw the specific error for better context upstream
     if (err instanceof Error) {
       throw err
     } else {

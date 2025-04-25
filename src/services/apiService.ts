@@ -1,28 +1,29 @@
+// src/services/apiService.ts
 /**
  * @file Centralized service for interacting with the Supabase database (Bible data).
- * Encapsulates all Supabase queries related to fetching biblical content.
+ * Encapsulates all Supabase queries related to fetching biblical content,
+ * adapted for the core_unit and core_xref schema.
  */
 import supabase from '@/supabase'
 import { getLanguageId } from '@/utils/language'
 import type {
   TestamentTranslation,
   GenreTranslation,
-  BookWithTranslation,
   BookSummary,
   Chapter,
   Version,
-  Verse,
   BaseVerse,
-  CatechismBibleIndexEntry,
+  CccLinkResult,
 } from '@/types'
 import { DEFAULT_LANGUAGE_NAME } from '@/constants'
 
-type BaseVerse = Omit<Verse, 'cccParagraphIds'> // This type is correct
-
-// --- Define type for RPC result row ---
-interface CccLinkResult {
-  verse_id: number
-  ccc_nums: number[] | null // RPC might return null if array_agg finds nothing
+function getCleanedBookLabel(abbr_ccc: string | null, abbr: string | null): string {
+  const rawLabel = abbr_ccc ?? abbr ?? 'unk_book'
+  let cleaned = rawLabel.replace(/[^a-zA-Z0-9_]+/g, '_')
+  if (cleaned.match(/^[0-9]/)) {
+    cleaned = 'b' + cleaned
+  }
+  return cleaned.toLowerCase()
 }
 
 /**
@@ -31,7 +32,7 @@ interface CccLinkResult {
  * @returns A promise resolving to an array of testament translations.
  * @throws If there's an error during the fetch or language ID retrieval.
  */
-export async function fetchTestaments(): Promise<TestamentTranslation[]> {
+export async function fetchTestaments(): Promise<Omit<TestamentTranslation, 'lang_id'>[]> {
   const langId = await getLanguageId(DEFAULT_LANGUAGE_NAME)
   const { data, error } = await supabase
     .from('bible_testament_translations')
@@ -39,24 +40,17 @@ export async function fetchTestaments(): Promise<TestamentTranslation[]> {
       `
       testament_id,
       name,
-      slug,
-      bible_testaments ( testament_id )
+      slug
     `,
     )
     .eq('lang_id', langId)
-    .order('testament_id') // Use the base table's ID for ordering if possible
+    .order('name')
 
   if (error) {
     console.error('Error fetching testaments:', error)
     throw new Error(`Failed to fetch testaments: ${error.message}`)
   }
-  // Ensure testament_id is consistently available, handling potential null from relation
-  return (data || [])
-    .map((item) => ({
-      ...item,
-      testament_id: item.testament_id ?? item.testaments?.testament_id,
-    }))
-    .filter((item) => item.testament_id != null) as TestamentTranslation[] // Genre assertion after filtering nulls
+  return (data || []) as Omit<TestamentTranslation, 'lang_id'>[]
 }
 
 /**
@@ -80,7 +74,6 @@ export async function fetchTestamentBySlug(
   if (error) {
     console.error(`Error fetching testament by slug '${slug}':`, error)
     if (error.code === 'PGRST116') {
-      // Not found
       throw new Error(`Testament with slug '${slug}' not found for the selected language.`)
     }
     throw new Error(`Failed to fetch testament details: ${error.message}`)
@@ -88,33 +81,30 @@ export async function fetchTestamentBySlug(
   if (!data) {
     throw new Error(`Testament with slug '${slug}' not found (no data returned).`)
   }
-
   return data
 }
 
 /**
  * Fetches distinct book genre translations associated with a specific testament.
- *
- * @param testamentId - The ID of the testament.
+ * (Logic remains similar, verify column names)
+ * @param testamentId - The ID of the testament (bible_testaments.id).
  * @returns A promise resolving to an array of genre translations.
  * @throws If there's an error during the fetch.
  */
 export async function fetchGenresForTestament(testamentId: number): Promise<GenreTranslation[]> {
   const langId = await getLanguageId(DEFAULT_LANGUAGE_NAME)
 
-  // Step 1: Find distinct genre_ids for books within the testament
   const { data: bookGenreData, error: bookGenreError } = await supabase
     .from('bible_books')
     .select('genre_id')
     .eq('testament_id', testamentId)
-    .not('genre_id', 'is', null) // Ensure genre_id is not null
+    .not('genre_id', 'is', null)
 
   if (bookGenreError) {
     console.error(`Error fetching book genres for testament ${testamentId}:`, bookGenreError)
     throw new Error(`Failed to fetch book genre associations: ${bookGenreError.message}`)
   }
 
-  // Extract unique, non-null genre IDs
   const distinctGenreIds = [
     ...new Set(
       bookGenreData?.map((item) => item.genre_id).filter((id): id is number => id !== null) ?? [],
@@ -122,17 +112,15 @@ export async function fetchGenresForTestament(testamentId: number): Promise<Genr
   ]
 
   if (distinctGenreIds.length === 0) {
-    console.log(`No distinct book genres found for testament ID ${testamentId}.`)
-    return [] // No genres associated
+    return []
   }
 
-  // Step 2: Fetch the translations for these distinct genre IDs
   const { data: genreTranslationsData, error: translationError } = await supabase
     .from('bible_genre_translations')
     .select('name, slug, genre_id')
     .in('genre_id', distinctGenreIds)
     .eq('lang_id', langId)
-    .order('genre_id') // Or order by name if preferred: .order('name')
+    .order('name')
 
   if (translationError) {
     console.error(
@@ -142,12 +130,17 @@ export async function fetchGenresForTestament(testamentId: number): Promise<Genr
     throw new Error(`Failed to fetch genre names: ${translationError.message}`)
   }
 
-  return genreTranslationsData || []
+  return (genreTranslationsData || []).map((g) => ({
+    genre_id: g.genre_id,
+    lang_id: langId,
+    name: g.name,
+    slug: g.slug,
+  }))
 }
 
 /**
  * Fetches details (name, ID) for a specific book genre by its slug.
- *
+ * (Verify column names)
  * @param slug - The URL slug of the book genre.
  * @returns A promise resolving to the genre translation details.
  * @throws If the genre is not found or if there's a fetch error.
@@ -166,7 +159,6 @@ export async function fetchGenreBySlug(
   if (error) {
     console.error(`Error fetching genre by slug '${slug}':`, error)
     if (error.code === 'PGRST116') {
-      // Not found
       throw new Error(`Genre with slug '${slug}' not found for the selected language.`)
     }
     throw new Error(`Failed to fetch genre details: ${error.message}`)
@@ -179,29 +171,30 @@ export async function fetchGenreBySlug(
 
 /**
  * Fetches books belonging to a specific genre ID, including their translations.
- *
- * @param genreId - The ID of the book genre.
+ * Adapted for new schema (PK is 'id').
+ * @param genreId - The ID of the book genre (bible_genres.id).
  * @returns A promise resolving to an array of book summaries.
  * @throws If there's an error during the fetch.
  */
 export async function fetchBooksByGenre(genreId: number): Promise<BookSummary[]> {
   const langId = await getLanguageId(DEFAULT_LANGUAGE_NAME)
   const { data, error } = await supabase
-    .from('bible_books')
+    .from('bible_books') // Base table
     .select(
       `
-      book_id,
+      id,
       bible_order,
       bible_book_translations!inner (
           title,
           abbr,
           slug,
-          lang_id
+          lang_id,
+          abbr_ccc
       )
     `,
     )
     .eq('genre_id', genreId)
-    .eq('bible_book_translations.lang_id', langId) // Filter translations by language
+    .eq('bible_book_translations.lang_id', langId)
     .order('bible_order')
 
   if (error) {
@@ -209,36 +202,41 @@ export async function fetchBooksByGenre(genreId: number): Promise<BookSummary[]>
     throw new Error(`Failed to fetch books: ${error.message}`)
   }
 
-  // Map the potentially complex nested structure to a flat BookSummary
   return (data || [])
     .filter(
-      (book): book is BookWithTranslation =>
-        book.bible_book_translations && book.bible_book_translations.length > 0, // Genre guard to ensure translation exists
+      (book) =>
+        book.bible_book_translations &&
+        Array.isArray(book.bible_book_translations) &&
+        book.bible_book_translations.length > 0,
     )
-    .map((book) => ({
-      book_id: book.book_id,
-      bible_order: book.bible_order,
-      // Assuming inner join guarantees one translation, but check just in case
-      title: book.bible_book_translations[0]?.title || 'Unknown Title',
-      abbr: book.bible_book_translations[0]?.abbr || 'N/A',
-      slug: book.bible_book_translations[0]?.slug || `book-${book.book_id}`, // Fallback slug
-    }))
+    .map((book) => {
+      const translation = book.bible_book_translations[0]
+      const cleanedLabel = getCleanedBookLabel(translation?.abbr_ccc, translation?.abbr)
+      return {
+        book_id: book.id,
+        bible_order: book.bible_order,
+        title: translation?.title || 'Unknown Title',
+        abbr: translation?.abbr || 'N/A',
+        slug: translation?.slug || `book-${book.id}`,
+        cleaned_book_label: cleanedLabel,
+      }
+    })
 }
 
 /**
- * Fetches details (title, ID) for a specific book by its slug.
- *
+ * Fetches details (title, ID, label) for a specific book by its slug.
+ * Adapted for new schema.
  * @param slug - The URL slug of the book.
- * @returns A promise resolving to the book translation details.
+ * @returns A promise resolving to the book details needed for display and path construction.
  * @throws If the book is not found or if there's a fetch error.
  */
 export async function fetchBookBySlug(
   slug: string,
-): Promise<Pick<BookWithTranslation['book_translations'][0], 'title'> & { book_id: number }> {
+): Promise<{ book_id: number; title: string; cleaned_book_label: string }> {
   const langId = await getLanguageId(DEFAULT_LANGUAGE_NAME)
   const { data, error } = await supabase
     .from('bible_book_translations')
-    .select('title, book_id') // Select book_id from the related book table
+    .select('title, book_id, abbr, abbr_ccc')
     .eq('slug', slug)
     .eq('lang_id', langId)
     .single()
@@ -246,23 +244,26 @@ export async function fetchBookBySlug(
   if (error) {
     console.error(`Error fetching book by slug '${slug}':`, error)
     if (error.code === 'PGRST116') {
-      // Not found
       throw new Error(`Book with slug '${slug}' not found for the selected language.`)
     }
     throw new Error(`Failed to fetch book details: ${error.message}`)
   }
   if (!data || data.book_id === null) {
-    // Ensure book_id is present
     throw new Error(`Book with slug '${slug}' not found or missing book ID.`)
   }
 
-  // We need to cast book_id because Supabase might return it as potentially null from the join
-  return { title: data.title, book_id: data.book_id as number }
+  const cleanedLabel = getCleanedBookLabel(data.abbr_ccc, data.abbr)
+
+  return {
+    book_id: data.book_id as number,
+    title: data.title,
+    cleaned_book_label: cleanedLabel,
+  }
 }
 
 /**
  * Fetches available Bible versions for the default language.
- *
+ * Adapted for new schema (PK is 'id').
  * @returns A promise resolving to an array of versions.
  * @throws If there's an error during the fetch.
  */
@@ -270,7 +271,7 @@ export async function fetchAvailableVersions(): Promise<Version[]> {
   const langId = await getLanguageId(DEFAULT_LANGUAGE_NAME)
   const { data, error } = await supabase
     .from('bible_versions')
-    .select('version_id, abbr, full_name, lang_id')
+    .select('id, abbr, full_name, lang_id')
     .eq('lang_id', langId)
     .order('abbr')
 
@@ -278,174 +279,108 @@ export async function fetchAvailableVersions(): Promise<Version[]> {
     console.error('Error fetching available versions:', error)
     throw new Error(`Failed to load versions: ${error.message}`)
   }
-  return data || []
+  // Map to Version type, changing 'id' to 'version_id' if needed by frontend type,
+  // but it's better to update the frontend type to use 'id'.
+  // Sticking with the updated type:
+  return (data || []).map((v) => ({
+    id: v.id,
+    abbr: v.abbr,
+    full_name: v.full_name,
+    lang_id: v.lang_id,
+  }))
 }
 
 /**
- * Fetches chapters for a specific book ID.
+ * Fetches chapter numbers for a specific book ID and version code.
+ * Queries core_unit using ltree to find distinct chapter numbers.
  *
- * @param bookId - The ID of the book.
- * @returns A promise resolving to an array of chapters.
+ * @param bookId - The ID of the book (bible_books.id). Used for context/logging.
+ * @param bookLabel - The cleaned book label for the ltree path (e.g., 'gen').
+ * @param versionCode - The version code for the ltree path (e.g., 'vul').
+ * @returns A promise resolving to an array of chapter numbers.
  * @throws If there's an error during the fetch.
  */
-export async function fetchChaptersForBook(bookId: number): Promise<Chapter[]> {
-  const { data, error } = await supabase
-    .from('bible_chapters')
-    .select('chapter_id, chapter_number, book_id')
-    .eq('book_id', bookId)
-    .order('chapter_number')
+export async function fetchChaptersForBook(
+  bookId: number,
+  bookLabel: string,
+  versionCode: string,
+): Promise<number[]> {
+  const bookPath = `bib.${versionCode.toLowerCase()}.${bookLabel}`
 
-  if (error) {
-    console.error(`Error fetching chapters for book ${bookId}:`, error)
-    throw new Error(`Failed to load chapters: ${error.message}`)
+  try {
+    const { data, error } = await supabase.rpc('get_chapter_numbers_for_book', {
+      book_path: bookPath,
+    })
+
+    if (error) {
+      console.error(`%c[fetchChaptersForBook] RPC Error:`, 'color: red; font-weight: bold;', error)
+      throw new Error(`Failed to load chapters via RPC: ${error.message}`)
+    }
+
+    const chapters = data || []
+    return chapters
+  } catch (catchError) {
+    console.error(
+      `%c[fetchChaptersForBook] CRITICAL ERROR during RPC execution:`,
+      'color: red; font-weight: bold;',
+      catchError,
+    )
+    throw new Error(`Failed to execute chapter RPC: ${catchError.message}`)
   }
-  return data || []
 }
 
 /**
- * Fetches verses for a specific chapter and version ID.
- * Selects only columns that exist in the 'bible_verses' table.
+ * Fetches verses for a specific chapter using ltree path.
  *
- * @param chapterId - The ID of the chapter.
- * @param versionId - The ID of the Bible version.
- * @returns A promise resolving to an array of verses (without CCC links initially).
+ * @param bookLabel - The cleaned book label (e.g., 'gen').
+ * @param chapterNumber - The chapter number.
+ * @param versionCode - The version code (e.g., 'vul').
+ * @returns A promise resolving to an array of verses.
  * @throws If there's an error during the fetch.
  */
 export async function fetchVersesForChapter(
-  chapterId: number,
-  versionId: number,
+  bookLabel: string,
+  chapterNumber: number,
+  versionCode: string,
 ): Promise<BaseVerse[]> {
-  // Return type should be BaseVerse[]
-  const { data, error } = await supabase
-    .from('bible_verses')
-    // --- CRITICAL CHECK: Ensure this SELECT is exactly as follows ---
-    .select('verse_id, chapter_id, version_id, verse_number, verse_text')
-    // --- NO reference_id should be listed here ---
-    .eq('chapter_id', chapterId)
-    .eq('version_id', versionId)
-    .order('verse_number')
+  const chapterPath = `bib.${versionCode.toLowerCase()}.${bookLabel}.${chapterNumber}`
+  console.debug(
+    `[fetchVersesForChapter] Calling RPC 'get_verses_for_chapter' with path: ${chapterPath}`,
+  )
 
-  if (error) {
-    console.error(`Error fetching verses for chapter ${chapterId}, version ${versionId}:`, error)
-    // Make the error message more specific
-    throw new Error(`Failed to load verses (DB error: ${error.message})`)
+  try {
+    const { data, error } = await supabase.rpc('get_verses_for_chapter', {
+      chapter_path: chapterPath,
+    })
+
+    if (error) {
+      console.error(`Error fetching verses via RPC for ${chapterPath}:`, error)
+      throw new Error(`Failed to load verses via RPC (DB error: ${error.message})`)
+    }
+
+    return (data || []).map((item) => ({
+      id: item.id,
+      unit_type: 'verse',
+      canonical_ref: item.canonical_ref,
+      sort_order: item.sort_order,
+      content_text: item.content_text,
+      path: String(item.path),
+    }))
+  } catch (catchError) {
+    console.error(
+      `%c[fetchVersesForChapter] CRITICAL ERROR during RPC execution:`,
+      'color: red; font-weight: bold;',
+      catchError,
+    )
+    throw new Error(`Failed to execute verse RPC: ${catchError.message}`)
   }
-  // Cast might be needed if Supabase types aren't perfect, but `data` should match BaseVerse[]
-  return (data as BaseVerse[]) || []
 }
 
 /**
- * Fetches Catechism paragraph numbers (ccc_num) linked to a given list of verse IDs.
- * Performs a two-step lookup: verse_id -> reference_id -> ccc_num.
+ * Fetches Catechism paragraph numbers (sort_order) linked to a given list of verse IDs (core_unit.id)
+ * using a new RPC function 'get_ccc_nums_for_verse_ids'.
  *
- * @param verseIds - An array of verse IDs to look up.
- * @returns A promise resolving to a Map where keys are the original verse IDs
- *          and values are arrays of corresponding ccc_num values.
- * @throws If there's an error during the fetch.
- */
-export async function fetchCatechismLinksForVerseIds(
-  verseIds: number[],
-): Promise<Map<number, number[]>> {
-  // Output maps verse_id -> ccc_num[]
-  const finalLinkMap = new Map<number, number[]>()
-  if (!verseIds || verseIds.length === 0) {
-    return finalLinkMap
-  }
-
-  // --- Step 1: Fetch reference_id for each verse_id ---
-  console.debug(
-    `[fetchCatechismLinks] Step 1: Fetching reference_ids for ${verseIds.length} verses.`,
-  )
-  const { data: verseRefData, error: verseRefError } = await supabase
-    .from('bible_verses')
-    .select('verse_id, reference_id')
-    .in('verse_id', verseIds)
-    .not('reference_id', 'is', null) // Only interested in verses that have a reference_id
-
-  if (verseRefError) {
-    console.error('Error fetching verse reference_ids:', verseRefError)
-    throw new Error(`Failed to fetch verse references: ${verseRefError.message}`)
-  }
-
-  if (!verseRefData || verseRefData.length === 0) {
-    console.debug('[fetchCatechismLinks] Step 1: No verses found with reference_ids.')
-    return finalLinkMap // No references found, so no links possible
-  }
-
-  // Create a map for quick lookup: verse_id -> reference_id
-  const verseToReferenceMap = new Map<number, number>()
-  // Collect unique reference IDs for the next query
-  const uniqueReferenceIds = new Set<number>()
-  for (const item of verseRefData) {
-    if (item.verse_id && item.reference_id) {
-      verseToReferenceMap.set(item.verse_id, item.reference_id)
-      uniqueReferenceIds.add(item.reference_id)
-    }
-  }
-  const referenceIdsToQuery = Array.from(uniqueReferenceIds)
-  console.debug(
-    `[fetchCatechismLinks] Step 1: Found ${referenceIdsToQuery.length} unique reference_ids.`,
-  )
-
-  // --- Step 2: Fetch ccc_num using reference_ids ---
-  if (referenceIdsToQuery.length === 0) {
-    return finalLinkMap // No valid reference IDs to query
-  }
-  console.debug(
-    `[fetchCatechismLinks] Step 2: Fetching CCC links for ${referenceIdsToQuery.length} reference_ids.`,
-  )
-  const { data: indexData, error: indexError } = await supabase
-    .from('catechism_bible_index')
-    // Use correct column names from schema
-    .select('reference_id, ccc_num')
-    .in('reference_id', referenceIdsToQuery)
-
-  if (indexError) {
-    console.error('Error fetching Catechism index data:', indexError)
-    throw new Error(`Failed to fetch Catechism index: ${indexError.message}`)
-  }
-
-  if (!indexData || indexData.length === 0) {
-    console.debug('[fetchCatechismLinks] Step 2: No CCC links found for the reference_ids.')
-    return finalLinkMap // No links found for these references
-  }
-
-  // Create a map for quick lookup: reference_id -> ccc_num[]
-  const referenceToCccMap = new Map<number, number[]>()
-  for (const entry of indexData as CatechismBibleIndexEntry[]) {
-    // Use updated type
-    if (entry.reference_id && entry.ccc_num) {
-      const existing = referenceToCccMap.get(entry.reference_id) || []
-      existing.push(entry.ccc_num)
-      referenceToCccMap.set(entry.reference_id, existing)
-    }
-  }
-  console.debug(
-    `[fetchCatechismLinks] Step 2: Found links for ${referenceToCccMap.size} reference_ids.`,
-  )
-
-  // --- Step 3: Merge Results - Map original verse_id to final ccc_num[] ---
-  for (const verseId of verseIds) {
-    const referenceId = verseToReferenceMap.get(verseId)
-    if (referenceId) {
-      const cccNums = referenceToCccMap.get(referenceId)
-      if (cccNums && cccNums.length > 0) {
-        finalLinkMap.set(verseId, cccNums)
-      }
-    }
-  }
-  console.debug(
-    `[fetchCatechismLinks] Step 3: Final map created linking ${finalLinkMap.size} original verse_ids to CCC numbers.`,
-  )
-
-  return finalLinkMap
-}
-
-/**
- * Fetches Catechism paragraph numbers (ccc_num) linked to a given list of verse IDs
- * using the 'get_ccc_links_for_verse_ids' database function (RPC).
- *
- * @param verseIds - An array of verse IDs to look up.
+ * @param verseIds - An array of verse core_unit IDs to look up.
  * @returns A promise resolving to a Map where keys are verse IDs and values are arrays of corresponding ccc_nums.
  * @throws If there's an error during the RPC call.
  */
@@ -453,35 +388,26 @@ export async function fetchCatechismLinksViaRpc(
   verseIds: number[],
 ): Promise<Map<number, number[]>> {
   if (!verseIds || verseIds.length === 0) {
-    return new Map() // Return empty map if no IDs are provided
+    return new Map()
   }
 
-  // Call the database function
-  const { data, error } = await supabase.rpc('get_ccc_links_for_verse_ids', {
-    // Pass the verse IDs as the argument named in the function definition
+  const { data, error } = await supabase.rpc('get_ccc_nums_for_verse_ids', {
     target_verse_ids: verseIds,
   })
 
   if (error) {
-    console.error('Error calling get_ccc_links_for_verse_ids RPC:', error)
+    console.error('Error calling get_ccc_nums_for_verse_ids RPC:', error)
     throw new Error(`Failed to fetch Catechism links via RPC: ${error.message}`)
   }
 
-  // Process the RPC result (which is an array of CccLinkResult objects) into a Map
   const indexMap = new Map<number, number[]>()
   if (data) {
-    // Supabase RPC result type might need casting
     const results = data as CccLinkResult[]
     for (const result of results) {
-      // Ensure ccc_nums is an array and not null before setting
       if (result.verse_id && result.ccc_nums && result.ccc_nums.length > 0) {
         indexMap.set(result.verse_id, result.ccc_nums)
       }
     }
   }
-
-  console.debug(
-    `[apiService] Fetched Catechism links via RPC for ${verseIds.length} verse IDs. Found links for ${indexMap.size} verses.`,
-  )
   return indexMap
 }
