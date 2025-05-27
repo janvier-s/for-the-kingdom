@@ -1,19 +1,24 @@
 <template>
-  <n-config-provider :theme-overrides="{ common: { bodyColor: '#fdfdfd' } }">
+  <n-config-provider>
     <n-message-provider>
       <n-dialog-provider>
-        <!-- This div will be the main flex container for the whole app page -->
-        <div class="app-page-container">
-          <app-header />
-          <n-layout class="main-layout-has-sider" has-sider>
-            <left-sidebar />
-            <n-layout-content class="router-view-wrapper">
-              <router-view />
-            </n-layout-content>
-          </n-layout>
-          <!-- RightDrawer is an overlay, its position is less dependent on this flex structure -->
-          <right-drawer />
-        </div>
+        <n-layout class="app-root-layout">
+          <!-- This div will be the main flex container for the whole app page -->
+          <div class="app-page-container">
+            <app-header />
+            <n-layout class="main-layout-has-left-sider" has-sider>
+              <left-sidebar />
+              <n-layout class="content-and-right-panel-layout" has-sider sider-placement="right">
+                <n-layout-content class="router-view-wrapper">
+                  <router-view />
+                </n-layout-content>
+                <right-panel />
+              </n-layout>
+            </n-layout>
+            <!-- RightDrawer is an overlay, its position is less dependent on this flex structure -->
+
+          </div>
+        </n-layout>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -26,7 +31,7 @@ import {
 } from 'naive-ui'
 import AppHeader from './components/layout/AppHeader.vue'
 import LeftSidebar from './components/layout/LeftSidebar.vue'
-import RightDrawer from './components/layout/RightDrawer.vue'
+import RightPanel from './components/layout/RightPanel.vue'
 
 </script>
 

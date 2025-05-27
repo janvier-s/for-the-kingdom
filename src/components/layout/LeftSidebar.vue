@@ -125,8 +125,10 @@ function isActiveChapter(bookOsisCode, chapterNum) {
 <style scoped>
 .left-sidebar {
   height: 100%;
+  /* Take full height of its parent (.main-content-row) */
   display: flex;
   flex-direction: column;
+  /* Prevent this sider itself from showing native scrollbar */
 }
 
 .sidebar-header {

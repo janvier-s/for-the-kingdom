@@ -1,0 +1,15 @@
+/* Example: src/assets/main.css */
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden; /* Prevents the body itself from scrolling */
+}
+
+#app {
+  /* If your Vue app is mounted to an element with id="app" */
+  height: 100%;
+  display: flex; /* If #app is the direct parent of app-root-layout and you want app-root-layout to be a flex item of #app */
+  flex-direction: column; /* Or whatever is appropriate for #app's children */
+}

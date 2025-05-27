@@ -19,14 +19,9 @@
             </n-button-group>
         </div>
 
-
         <div v-if="isLoadingContent">
             <n-skeleton text :repeat="4" style="width: 71%" />
             <n-skeleton text :repeat="2" style="width: 61%" />
-
-
-            <!-- <n-spin size="large" />
-            <p>Loading content for {{ bookOsis }} {{ chapterNumParsed }}...</p> -->
         </div>
         <div v-else-if="!bookOsis || !chapterNumParsed" class="placeholder-content">
             <p>Select a book and chapter from the navigation to view content.</p>
@@ -61,9 +56,9 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router'; // Import useRouter
-import { NH2, NSpin, NButton, NButtonGroup, NIcon } from 'naive-ui';
+import { NH2, NSkeleton, NButton, NButtonGroup, NIcon } from 'naive-ui';
 import { ReaderOutline } from '@vicons/ionicons5';
 import { useBibleStore } from '@/stores/bibleStore';
 import { useUiStore } from '@/stores/uiStore';
@@ -78,6 +73,7 @@ const bibleStore = useBibleStore();
 const uiStore = useUiStore();
 const route = useRoute(); // To access current route details if needed beyond props
 const router = useRouter(); // To programmatically navigate
+
 
 // Computed property for loading state based on display mode
 const isLoadingContent = computed(() => {
@@ -147,24 +143,29 @@ watch(
     { immediate: true } // immediate: true to run on component mount
 );
 
-onMounted(async () => {
-    // Initial load based on route params, watcher with immediate:true handles this.
-    // We might still want to ensure books are loaded if not already for `currentRouteReference`
-    if (bibleStore.books.length === 0 && props.bookOsis) {
-        await bibleStore.fetchBooks();
-    }
-});
-
 function showFootnotes(verse) {
-    uiStore.openRightDrawer({
-        type: 'footnotes',
-        data: verse.footnotes,
-        verseRef: `${props.bookOsis} ${chapterNumParsed.value}:${verse.verse_number}`
-    });
+    // Use the new action from uiStore
+    uiStore.showInRightPanel(
+        `Footnotes: ${props.bookOsis} ${chapterNumParsed.value}:${verse.verse_number}`,
+        { // Pass structured content for the panel to render
+            type: 'footnotes', // Keep type if RightPanel.vue uses it
+            verseRef: `${props.bookOsis} ${chapterNumParsed.value}:${verse.verse_number}`,
+            data: verse.footnotes // The actual footnote array
+        },
+        'footnotes' // This is the rightPanelContentType
+    );
 }
 
-function handleFootnoteClickInBlock(footnoteData) {
-    uiStore.openRightDrawer({ type: 'block_footnote', data: footnoteData });
+function handleFootnoteClickInBlock(footnoteDataFromBlock) {
+    // Assuming footnoteDataFromBlock is an object with structure your RightPanel can understand
+    uiStore.showInRightPanel(
+        `Footnote: ${footnoteDataFromBlock.caller || 'Details'}`, // Example title
+        {
+            type: 'block_footnote',
+            data: footnoteDataFromBlock // The data emitted by BibleBlockRenderer
+        },
+        'block_footnote'
+    );
 }
 
 function changeDisplayMode(mode) {

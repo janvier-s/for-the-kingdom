@@ -9,6 +9,7 @@ import naive from 'naive-ui'
 import 'vfonts/Lato.css'
 // Monospace Fonts
 import 'vfonts/FiraCode.css'
+import './assets/main.css'
 
 const app = createApp(App)
 const pinia = createPinia()
