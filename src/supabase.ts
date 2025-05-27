@@ -2,7 +2,7 @@
  * @file Initializes and exports the Supabase client instance.
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from './types/supabase'
+import type { Database } from './_archive/types/supabase'
 
 const supabaseUrl: string | undefined = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey: string | undefined = import.meta.env.VITE_SUPABASE_ANON_KEY

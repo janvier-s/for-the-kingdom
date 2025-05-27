@@ -5,7 +5,7 @@
  */
 import { type Ref, computed } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
-import * as apiService from '@/services/apiService'
+import * as apiService from '@/_archive/services/apiService'
 import type {
   TestamentTranslation,
   GenreTranslation,
@@ -14,7 +14,7 @@ import type {
   Version,
   Verse,
   BaseVerse,
-} from '@/types'
+} from '@/_archive/types'
 
 export type { TestamentTranslation, GenreTranslation, BookSummary, Version, Verse, BaseVerse }
 

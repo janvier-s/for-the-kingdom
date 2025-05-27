@@ -3,7 +3,7 @@
  * Provides a cleaner interface for components compared to directly importing the store.
  */
 import { computed } from 'vue'
-import { useAuthStore } from '@/stores/auth.store'
+import { useAuthStore } from '@/_archive/stores/auth.store'
 import type {
   SignInWithPasswordCredentials,
   SignUpWithPasswordCredentials,

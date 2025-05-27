@@ -1,6 +1,6 @@
 // src/utils/language.ts
 import supabase from '@/supabase'
-import { DEFAULT_LANGUAGE_NAME } from '@/constants'
+import { DEFAULT_LANGUAGE_NAME } from '@/_archive/constants'
 
 const languageIdCache: Record<string, number> = {}
 

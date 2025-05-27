@@ -3,9 +3,9 @@
 
 import { inject } from 'vue'
 import { QueryClient, VUE_QUERY_CLIENT } from '@tanstack/vue-query'
-import * as apiService from '@/services/apiService' // Import the updated service
+import * as apiService from '@/_archive/services/apiService' // Import the updated service
 import type { PrefetchOptions } from '@tanstack/vue-query'
-import type { BaseVerse, Version } from '@/types' // Import updated types
+import type { BaseVerse, Version } from '@/_archive/types' // Import updated types
 
 // Helper to find version code, defaulting to ID 1 if available
 function getDefaultVersionCode(versions: Version[] | null | undefined): string | null {

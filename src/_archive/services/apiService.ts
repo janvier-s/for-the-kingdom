@@ -5,7 +5,7 @@
  * adapted for the core_unit and core_xref schema.
  */
 import supabase from '@/supabase'
-import { getLanguageId } from '@/utils/language'
+import { getLanguageId } from '@/_archive/utils/language'
 import type {
   TestamentTranslation,
   GenreTranslation,
@@ -14,8 +14,8 @@ import type {
   Version,
   BaseVerse,
   CccLinkResult,
-} from '@/types'
-import { DEFAULT_LANGUAGE_NAME } from '@/constants'
+} from '@/_archive/types'
+import { DEFAULT_LANGUAGE_NAME } from '@/_archive/constants'
 
 function getCleanedBookLabel(abbr_ccc: string | null, abbr: string | null): string {
   const rawLabel = abbr_ccc ?? abbr ?? 'unk_book'

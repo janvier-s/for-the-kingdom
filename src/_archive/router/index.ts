@@ -10,7 +10,7 @@ import {
   type RouteLocationNormalized,
 } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
-import { fetchTestamentBySlug } from '@/services/apiService' // Use the service layer
+import { fetchTestamentBySlug } from '@/_archive/services/apiService' // Use the service layer
 
 // Define route names as constants for type safety and easier refactoring
 const RouteNames = {
