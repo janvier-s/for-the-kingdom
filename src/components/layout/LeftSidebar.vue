@@ -1,9 +1,9 @@
 <template>
-  <n-layout-sider bordered show-trigger collapse-mode="width" :collapsed-width="0" :width="260" class="left-sidebar"
+  <n-layout-sider bordered show-trigger collapse-mode="width" :collapsed-width="60" :width="260" class="left-sidebar"
     :native-scrollbar="false">
-    <div class="sidebar-header">
+    <!-- <div class="sidebar-header">
       <n-h3 style="margin: 10px 0 5px 12px; font-size: 1.1em;">Navigation</n-h3>
-    </div>
+    </div> -->
 
     <div v-if="bibleStore.isLoadingBooks" class="loading-container">
       <n-spin size="small" />
@@ -15,7 +15,9 @@
         <template v-for="testamentGroup in groupedBooks" :key="testamentGroup.key">
           <n-collapse-item disabled class="testament-group-header">
             <template #header>
-              <n-text strong>{{ testamentGroup.label }}</n-text>
+              <n-divider strong title-placement="center">
+                {{ testamentGroup.label }}
+              </n-divider>
             </template>
           </n-collapse-item>
           <n-collapse-item v-for="bookItem in testamentGroup.children" :key="bookItem.key" :name="bookItem.key"
@@ -24,10 +26,10 @@
               <n-icon :component="BookIcon" size="18" style="margin-right: 8px;" />
               {{ bookItem.label }}
             </template>
-            <template #arrow>
+            <!-- <template #arrow>
               <n-icon
                 :component="bibleStore.expandedBookOsisCode === bookItem.key ? ChevronDownOutline : ChevronForwardOutline" />
-            </template>
+            </template> -->
 
             <div v-if="bibleStore.expandedBookOsisCode === bookItem.key" class="chapter-grid-container">
               <div v-if="bibleStore.isLoadingChaptersForMenu" class="loading-container chapter-loader">
@@ -36,9 +38,7 @@
               <n-grid v-else-if="bibleStore.chaptersForExpandedBook.length > 0" x-gap="6" y-gap="6" :cols="5"
                 class="chapter-grid">
                 <n-gi v-for="chapter in bibleStore.chaptersForExpandedBook" :key="chapter">
-                  <n-button text block class="chapter-button"
-                    :type="isActiveChapter(bookItem.key, chapter) ? 'primary' : 'default'"
-                    @click.stop="handleChapterSelect(bookItem.key, chapter)">
+                  <n-button block class="chapter-button" @click.stop="handleChapterSelect(bookItem.key, chapter)">
                     {{ chapter }}
                   </n-button>
                 </n-gi>
@@ -55,6 +55,7 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router';
 import { onMounted, computed, ref } from 'vue';
 import {
   NLayoutSider, NH3, NSpin, NIcon, NCollapse, NCollapseItem,
@@ -69,6 +70,7 @@ import {
 
 const bibleStore = useBibleStore();
 const bookListScrollbarRef = ref(null);
+const router = useRouter();
 
 onMounted(() => {
   bibleStore.fetchBooks();
@@ -97,15 +99,21 @@ const groupedBooks = computed(() => {
   return options;
 });
 
-function handleCollapseToggle({ name }) {
+function handleCollapseToggle({ name /* bookOsisCode */, expanded }) {
   const bookClicked = bibleStore.books.find(b => b.osis_code === name);
   if (bookClicked) {
     bibleStore.handleBookMenuClick(bookClicked);
+    // Optional: If you want clicking a book to also navigate to its first chapter by default
+    // if (expanded && bibleStore.chaptersForExpandedBook.length > 0) {
+    //   router.push(`/bible/${name}/${bibleStore.chaptersForExpandedBook[0]}`);
+    // }
   }
 }
-
 function handleChapterSelect(bookOsisCode, chapterNum) {
-  bibleStore.selectChapterForContent(bookOsisCode, chapterNum);
+  // Programmatically navigate to the new route
+  router.push(`/bible/${bookOsisCode}/${chapterNum}`);
+  // The MainContentArea component will react to this route change via its watcher.
+  // The Pinia store's selectedBook/Chapter will be updated by MainContentArea's loadContentForRoute.
 }
 
 function isActiveChapter(bookOsisCode, chapterNum) {
@@ -119,8 +127,6 @@ function isActiveChapter(bookOsisCode, chapterNum) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  /* Sider itself should not scroll if inner scrollbar is used */
 }
 
 .sidebar-header {
@@ -131,24 +137,19 @@ function isActiveChapter(bookOsisCode, chapterNum) {
 
 .book-list-scrollbar {
   flex-grow: 1;
-  /* The n-scrollbar component will manage its own overflow.
-     It needs to know its bounds. Its parent (.left-sidebar) is a flex column,
-     and .sidebar-header is flex-shrink:0, so .book-list-scrollbar with flex-grow:1
-     should fill the remaining vertical space.
-     If still no scrollbar, the content inside n-scrollbar is not tall enough,
-     OR the n-scrollbar itself isn't getting a proper height.
-  */
 }
 
-.custom-collapse {
-  /* No specific height rules needed here, it will expand as much as its content */
+.n-collapse .n-collapse-item {
+  margin: 0;
 }
 
 :deep(.n-collapse .n-collapse-item .n-collapse-item__header) {
-  padding-top: 7px !important;
-  padding-bottom: 7px !important;
-  padding-left: 12px !important;
+  padding: 0;
   font-size: 0.9em;
+}
+
+:deep(.n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item__header-main) {
+  padding: 7px 0 7px 12px;
 }
 
 :deep(.n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item-arrow) {
@@ -171,14 +172,6 @@ function isActiveChapter(bookOsisCode, chapterNum) {
 
 .testament-group-header :deep(.n-collapse-item-arrow) {
   display: none !important;
-}
-
-.chapter-grid-container {
-  /* container for loader or grid */
-}
-
-.chapter-grid {
-  /* styles for the grid itself */
 }
 
 .chapter-button {

@@ -1,56 +1,60 @@
-// src/router/index.js (or index.ts)
+// src/router/index.js (or .ts)
 import { createRouter, createWebHistory } from 'vue-router'
-// Import your view components here.
-// For now, let's assume your main content will be handled by components
-// within MainContentArea.vue, but we can define a basic home route.
-// You might create a specific view for Bible reading later.
-
-// Example: If you had a dedicated view for Bible display
-// import BibleView from '../views/BibleView.vue'
-import MainContentArea from '../components/layout/MainContentArea.vue' // Or a dedicated Bible reading view
+import MainContentArea from '../components/layout/MainContentArea.vue' // Your main Bible content view
+// import HomeView from '../views/HomeView.vue' // Example if you have a separate home
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    // component: BibleView // If you create a dedicated BibleView.vue
-    // For now, we can point to MainContentArea if it's the primary content display
-    // or have App.vue structure things and MainContentArea use <router-view />
-    // Let's assume MainContentArea will use <router-view /> for now
-    // and we define a child route or a default route for Bible content.
-    redirect: '/bible', // Redirect to a default Bible path
+    // component: HomeView, // Or redirect to a default Bible view
+    redirect: '/bible/GEN/1', // Redirect to a default chapter, e.g., Genesis 1
   },
   {
-    path: '/bible', // General path for Bible reading
-    name: 'BibleBase',
-    component: MainContentArea, // This component will render the verses/blocks
-    // It might itself use <router-view> if you want nested routes
-    // like /bible/GEN/1
-    // You can add child routes here for specific books/chapters
-    // children: [
-    //   {
-    //     path: ':bookOsis/:chapterNum',
-    //     name: 'BibleChapter',
-    //     component: MainContentArea, // Or a specific component to render chapter
-    //     props: true // This will pass route params as props
-    //   }
-    // ]
+    // Route for when only a book is "selected" conceptually, but no chapter yet
+    // This might not be strictly necessary if you always go to a chapter
+    path: '/bible/:bookOsis',
+    name: 'BibleBook',
+    component: MainContentArea,
+    props: true, // Pass route params (bookOsis) as props to MainContentArea
   },
-  // Add other routes for About, CCC, Commentary etc. later
-  // {
-  //   path: '/about',
-  //   name: 'About',
-  //   // route level code-splitting
-  //   // this generates a separate chunk (About.[hash].js) for this route
-  //   // which is lazy-loaded when the route is visited.
-  //   component: () => import('../views/AboutView.vue')
-  // }
+  {
+    path: '/bible/:bookOsis/:chapterNum',
+    name: 'BibleChapter',
+    component: MainContentArea, // MainContentArea will display the content
+    props: true, // This will pass route params (bookOsis, chapterNum) as props to MainContentArea
+  },
+  // Fallback for /bible if no book/chapter is specified, redirect to a default
+  {
+    path: '/bible',
+    redirect: '/bible/GEN/1',
+  },
+  // Add other top-level routes like /catechism, /commentary later
 ]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL), // For history mode
-  // history: createWebHashHistory(import.meta.env.BASE_URL), // For hash mode if needed
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    // Always scroll to top when navigating to a new chapter/book
+    // or restore position if using browser back/forward
+    if (savedPosition) {
+      return savedPosition
+    } else if (to.name === 'BibleChapter' || to.name === 'BibleBook') {
+      // If navigating to a chapter, check if it's a different chapter than the previous one
+      if (
+        from.name === 'BibleChapter' &&
+        (from.params.bookOsis !== to.params.bookOsis ||
+          from.params.chapterNum !== to.params.chapterNum)
+      ) {
+        return { top: 0, behavior: 'smooth' }
+      } else if (from.name !== 'BibleChapter') {
+        // Coming from a different type of page
+        return { top: 0, behavior: 'smooth' }
+      }
+    }
+    return { top: 0 }
+  },
 })
 
 export default router

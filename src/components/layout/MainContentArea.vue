@@ -1,101 +1,207 @@
+// src/components/layout/MainContentArea.vue
 <template>
     <div class="actual-content-area">
-        <n-h2>{{ bibleStore.currentReference }}</n-h2>
+        <n-h2 v-if="bookOsis && chapterNumParsed">{{ currentRouteReference }}</n-h2>
+        <n-h2 v-else-if="bookOsis">{{ bookOsis }} - Select a chapter</n-h2>
+        <n-h2 v-else>Bible Content</n-h2>
 
-        <!-- CORRECTED: v-if instead of v.if -->
-        <div v-if="bibleStore.isLoadingVerses || bibleStore.isLoadingBooks || bibleStore.isLoadingContentBlocks">
-            <n-spin size="large" />
-            <p>Loading content...</p>
+
+        <div class="display-mode-toggle" v-if="bookOsis && chapterNumParsed">
+            <n-button-group>
+                <n-button :type="bibleStore.displayMode === 'paragraph' ? 'primary' : 'default'"
+                    @click="changeDisplayMode('paragraph')" size="small">
+                    Paragraph
+                </n-button>
+                <n-button :type="bibleStore.displayMode === 'verse-by-verse' ? 'primary' : 'default'"
+                    @click="changeDisplayMode('verse-by-verse')" size="small">
+                    Verse by Verse
+                </n-button>
+            </n-button-group>
+        </div>
+
+
+        <div v-if="isLoadingContent">
+            <n-skeleton text :repeat="4" style="width: 71%" />
+            <n-skeleton text :repeat="2" style="width: 61%" />
+
+
+            <!-- <n-spin size="large" />
+            <p>Loading content for {{ bookOsis }} {{ chapterNumParsed }}...</p> -->
+        </div>
+        <div v-else-if="!bookOsis || !chapterNumParsed" class="placeholder-content">
+            <p>Select a book and chapter from the navigation to view content.</p>
         </div>
         <div v-else>
-            <p v-if="!bibleStore.selectedBook || !bibleStore.selectedChapter">
-                Please select a book and chapter from the navigation.
-            </p>
-            <div v-else>
-                <!-- Verse-by-verse display -->
-                <div v-if="bibleStore.displayMode === 'verse-by-verse'">
-                    <div v-if="bibleStore.verses && bibleStore.verses.length">
-                        <div v-for="verse in bibleStore.verses" :key="verse.id" class="verse-item">
-                            <strong>{{ verse.verse_number }}</strong> {{ verse.text_content }}
-                            <n-button v-if="verse.footnotes && verse.footnotes.length" size="tiny" text
-                                @click="showFootnotes(verse)" title="Show footnotes">
-                                <n-icon><reader-outline /></n-icon>
-                            </n-button>
-                        </div>
+            <!-- Verse-by-verse display -->
+            <div v-if="bibleStore.displayMode === 'verse-by-verse'">
+                <div v-if="bibleStore.verses && bibleStore.verses.length">
+                    <div v-for="verse in bibleStore.verses" :key="verse.id" class="verse-item"
+                        :id="`v-${bookOsis}-${chapterNumParsed}-${verse.verse_number}`">
+                        <strong>{{ verse.verse_number }}</strong> {{ verse.text_content }}
+                        <n-button v-if="verse.footnotes && verse.footnotes.length" size="tiny" text
+                            @click="showFootnotes(verse)" title="Show footnotes" class="footnote-btn">
+                            <n-icon><reader-outline /></n-icon>
+                        </n-button>
                     </div>
-                    <p v-else>No verses found for this selection.</p> <!-- Specific message for no verses -->
                 </div>
+                <p v-else>No verses found for {{ bookOsis }} {{ chapterNumParsed }}.</p>
+            </div>
 
-                <!-- Paragraph display -->
-                <div v-else-if="bibleStore.displayMode === 'paragraph'">
-                    <div v-if="bibleStore.contentBlocks && bibleStore.contentBlocks.length">
-                        <div v-for="block in bibleStore.contentBlocks" :key="block.id" class="content-block">
-                            <div v-if="isHeadingBlock(block.block_type)">
-                                <n-h3
-                                    v-if="block.block_type.includes('major_section') || block.block_type === 'book_title'">{{
-                                        block.plain_text_content }}</n-h3>
-                                <n-h4 v-else-if="block.block_type.includes('section_heading')">{{
-                                    block.plain_text_content }}</n-h4>
-                                <n-h5 v-else>{{ block.plain_text_content }}</n-h5>
-                            </div>
-                            <!-- Using a component for rendering blocks is safer and more maintainable -->
-                            <BibleBlockRenderer v-else :block="block" @footnote-click="handleFootnoteClickInBlock" />
-                            <!-- OR the simplified v-html (still with caution) -->
-                            <!-- <p v-else v-html="renderBlockXml(block.xml_content)"></p> -->
-                        </div>
-                    </div>
-                    <p v-else>No content blocks found for this selection.</p> <!-- Specific message for no blocks -->
+            <!-- Paragraph display -->
+            <div v-else-if="bibleStore.displayMode === 'paragraph'">
+                <div v-if="bibleStore.contentBlocks && bibleStore.contentBlocks.length">
+                    <BibleBlockRenderer v-for="block in bibleStore.contentBlocks" :key="block.id" :block="block"
+                        @footnote-click="handleFootnoteClickInBlock" :current-book-osis="bookOsis"
+                        :current-chapter-num="chapterNumParsed" />
                 </div>
-                <!-- Fallback if displayMode is unknown or some other unhandled state -->
-                <p v-else>No content to display for the current mode or selection.</p>
+                <p v-else>No content blocks found for {{ bookOsis }} {{ chapterNumParsed }}.</p>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'; // Import computed
-import { NH2, NSpin, NButton, NIcon, NH3, NH4, NH5 } from 'naive-ui'
-import { ReaderOutline } from '@vicons/ionicons5'
-import { useBibleStore } from '@/stores/bibleStore'
-import { useUiStore } from '@/stores/uiStore'
-import BibleBlockRenderer from '@/components/utils/BibleBlockRenderer.vue';
-const bibleStore = useBibleStore()
-const uiStore = useUiStore()
+import { ref, watch, onMounted, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router'; // Import useRouter
+import { NH2, NSpin, NButton, NButtonGroup, NIcon } from 'naive-ui';
+import { ReaderOutline } from '@vicons/ionicons5';
+import { useBibleStore } from '@/stores/bibleStore';
+import { useUiStore } from '@/stores/uiStore';
+import BibleBlockRenderer from '../utils/BibleBlockRenderer.vue';
 
-// Add isLoadingContentBlocks to your bibleStore state if you haven't
-// For the initial loading state:
-// const isLoading = computed(() => bibleStore.isLoadingBooks || bibleStore.isLoadingChapters || bibleStore.isLoadingVerses || bibleStore.isLoadingContentBlocks);
+const props = defineProps({
+    bookOsis: String,
+    chapterNum: [String, Number] // Route params are strings initially
+});
 
+const bibleStore = useBibleStore();
+const uiStore = useUiStore();
+const route = useRoute(); // To access current route details if needed beyond props
+const router = useRouter(); // To programmatically navigate
+
+// Computed property for loading state based on display mode
+const isLoadingContent = computed(() => {
+    if (bibleStore.displayMode === 'paragraph') {
+        return bibleStore.isLoadingContentBlocks;
+    }
+    return bibleStore.isLoadingVerses;
+});
+
+const chapterNumParsed = computed(() => props.chapterNum ? parseInt(props.chapterNum, 10) : null);
+
+const currentRouteReference = computed(() => {
+    const book = bibleStore.books.find(b => b.osis_code === props.bookOsis);
+    const bookName = book ? book.name : props.bookOsis;
+    return chapterNumParsed.value ? `${bookName} ${chapterNumParsed.value}` : bookName;
+});
+
+async function loadContentForRoute(book, chapter) {
+    if (book && chapter) {
+        // Update the store's selected book and chapter *before* fetching
+        // This ensures fetchContentForChapter uses the correct context
+        const bookData = bibleStore.books.find(b => b.osis_code === book);
+        if (bookData) {
+            bibleStore.selectedBook = bookData;
+        } else {
+            // If books aren't loaded yet, fetch them, then find the book
+            // This can happen on direct URL load
+            if (bibleStore.books.length === 0) {
+                await bibleStore.fetchBooks(); // Ensure books are loaded
+                const foundBook = bibleStore.books.find(b => b.osis_code === book);
+                if (foundBook) bibleStore.selectedBook = foundBook;
+                else {
+                    console.error(`Book ${book} not found after fetching books.`);
+                    // Potentially redirect to a 404 or default page
+                    router.push('/bible/GEN/1'); // Fallback
+                    return;
+                }
+            } else {
+                console.error(`Book ${book} not found in existing store.`);
+                router.push('/bible/GEN/1'); // Fallback
+                return;
+            }
+        }
+        bibleStore.selectedChapter = chapter;
+        await bibleStore.fetchContentForChapter();
+    } else if (book) {
+        // Handle case where only bookOsis is provided (e.g., show book info, prompt for chapter)
+        const bookData = bibleStore.books.find(b => b.osis_code === book);
+        if (bookData) bibleStore.selectedBook = bookData;
+        bibleStore.selectedChapter = null;
+        bibleStore.verses = [];
+        bibleStore.contentBlocks = [];
+    }
+}
+
+// Watch for prop changes (route params)
+watch(
+    () => [props.bookOsis, props.chapterNum],
+    async ([newBookOsis, newChapterNumStr]) => {
+        const newChapterNum = newChapterNumStr ? parseInt(newChapterNumStr, 10) : null;
+        // Ensure books are loaded before trying to set selectedBook from route
+        if (bibleStore.books.length === 0 && newBookOsis) {
+            await bibleStore.fetchBooks();
+        }
+        loadContentForRoute(newBookOsis, newChapterNum);
+    },
+    { immediate: true } // immediate: true to run on component mount
+);
+
+onMounted(async () => {
+    // Initial load based on route params, watcher with immediate:true handles this.
+    // We might still want to ensure books are loaded if not already for `currentRouteReference`
+    if (bibleStore.books.length === 0 && props.bookOsis) {
+        await bibleStore.fetchBooks();
+    }
+});
 
 function showFootnotes(verse) {
-    uiStore.openRightDrawer({ type: 'footnotes', data: verse.footnotes, verseRef: `${verse.book_osis_code} ${verse.chapter_number}:${verse.verse_number}` });
+    uiStore.openRightDrawer({
+        type: 'footnotes',
+        data: verse.footnotes,
+        verseRef: `${props.bookOsis} ${chapterNumParsed.value}:${verse.verse_number}`
+    });
 }
 
 function handleFootnoteClickInBlock(footnoteData) {
-    // footnoteData should be an object containing the necessary info for the drawer
     uiStore.openRightDrawer({ type: 'block_footnote', data: footnoteData });
 }
 
-function isHeadingBlock(blockType) {
-    if (!blockType) return false;
-    const headingTypes = ['book_title', 'major_section_heading', 'section_heading', 'toc_level']; // Add more if needed
-    return headingTypes.some(type => blockType.includes(type));
+function changeDisplayMode(mode) {
+    bibleStore.setDisplayMode(mode); // Store will re-fetch content
 }
-
-// Removing renderBlockXml from here. It's better in a dedicated component.
-// If you absolutely need a quick v-html placeholder, use it with extreme caution and sanitize.
 
 </script>
 
 <style scoped>
 .actual-content-area {
-    /* Styles for the content rendering area */
+    position: relative;
+    /* For positioning things like display mode toggle */
+}
+
+.placeholder-content {
+    text-align: center;
+    margin-top: 50px;
+    color: var(--n-text-color-disabled);
 }
 
 .verse-item {
     margin-bottom: 0.5em;
     line-height: 1.6;
+    padding: 2px 0;
+    /* Tighter vertical spacing */
+}
+
+.footnote-btn {
+    margin-left: 4px;
+    position: relative;
+    top: -2px;
+    /* Align better with text */
+}
+
+.display-mode-toggle {
+    margin-bottom: 15px;
+    text-align: center;
 }
 
 .content-block {

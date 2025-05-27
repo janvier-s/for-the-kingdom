@@ -15,8 +15,10 @@
           <span v-if="item.type === 'verseNumber'" class="verse-number-inline">{{ item.number }}</span>
           <span v-if="item.type === 'footnoteCaller'" @click="emitFootnote(item.data)">{{ item.caller }}</span>
         </template>
-      -->
-      <p>[Rendering for block type '{{ props.block.block_type }}' with XML content needs to be implemented. Displaying plain text as fallback.]</p>
+-->
+      <p>[Rendering for block type '{{ props.block.block_type }}' with XML content needs to be implemented. Displaying
+        plain
+        text as fallback.]</p>
       <p>{{ props.block.plain_text_content }}</p>
     </div>
   </div>
@@ -60,9 +62,6 @@ function sanitizedSimpleText() {
 </script>
 
 <style scoped>
-.bible-block-rendered-content {
-  /* Add styles if needed */
-}
 .verse-number-inline {
   font-weight: bold;
   font-size: 0.8em;
@@ -70,11 +69,13 @@ function sanitizedSimpleText() {
   margin-right: 0.2em;
   color: #555;
 }
+
 .footnote-caller {
   cursor: pointer;
   color: blue;
   text-decoration: underline;
 }
+
 .complex-xml-placeholder {
   border: 1px dashed #ccc;
   padding: 10px;
