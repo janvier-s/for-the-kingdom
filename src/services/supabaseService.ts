@@ -14,8 +14,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // Fetch Bible books with their English translation for display
 // Assuming lang_id for English is, for example, 2. Adjust as needed.
 // You'll need to know the lang_id for the language you want book names in.
+// src/services/supabaseService.js
 async function getBibleBooks(languageId = 1) {
-  // Default to French (lang_id 1 based on your previous setup)
+  console.log(`Fetching Bible books for languageId: ${languageId}`) // Add log
   const { data, error } = await supabase
     .from('bible_books')
     .select(
@@ -23,26 +24,50 @@ async function getBibleBooks(languageId = 1) {
       id,
       osis_code,
       custom_ref_code,
-      bible_order,
       testament_id,
+      chapter_count,
       bible_book_translations!inner (
         title,
         abbr
       )
     `,
     )
-    .eq('bible_book_translations.lang_id', languageId)
-    .order('bible_order', { ascending: true })
+    .eq('bible_book_translations.lang_id', languageId) // Condition for the join
+    .order('id', { ascending: true })
 
   if (error) {
-    console.error('Error fetching Bible books:', error.message)
-    throw error
+    console.error('Supabase error fetching Bible books:', error.message)
+    // To ensure the store doesn't try to .map(null), throw or return empty array
+    // throw error; // This would be caught by the store's catch block
+    return [] // Return an empty array on error to prevent .map(null)
   }
-  // Flatten the structure for easier use
+
+  if (!data) {
+    // Explicitly check if data is null or undefined
+    console.warn(
+      `No data returned from Supabase for Bible books (langId: ${languageId}). Query might have found no matches.`,
+    )
+    return [] // Return empty array if Supabase returns null data (e.g., no books match criteria)
+  }
+
+  // If data is an empty array, .map will correctly return an empty array.
+  // The problem occurs if 'data' itself is null.
+
   return data.map((book) => ({
-    ...book,
-    name: book.bible_book_translations[0]?.title || book.osis_code,
-    abbr: book.bible_book_translations[0]?.abbr || book.osis_code,
+    id: book.id,
+    osis_code: book.osis_code,
+    custom_ref_code: book.custom_ref_code,
+    testament_id: book.testament_id,
+    chapter_count: book.chapter_count,
+    // Ensure bible_book_translations is not null and has elements
+    name:
+      book.bible_book_translations && book.bible_book_translations.length > 0
+        ? book.bible_book_translations[0].title
+        : book.osis_code,
+    abbr:
+      book.bible_book_translations && book.bible_book_translations.length > 0
+        ? book.bible_book_translations[0].abbr
+        : book.osis_code,
   }))
 }
 
