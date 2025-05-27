@@ -1,6 +1,6 @@
 <template>
   <n-layout-sider bordered show-trigger collapse-mode="width" :collapsed-width="0" :width="260" class="left-sidebar"
-    native-scrollbar="false">
+    :native-scrollbar="false">
     <div class="sidebar-header">
       <n-h3 style="margin: 10px 0 5px 12px; font-size: 1.1em;">Navigation</n-h3>
     </div>
@@ -8,10 +8,10 @@
     <div v-if="bibleStore.isLoadingBooks" class="loading-container">
       <n-spin size="small" />
     </div>
-    <n-scrollbar v-else class="book-list-scrollbar">
+    <n-scrollbar v-else class="book-list-scrollbar" ref="bookListScrollbarRef">
       <n-collapse arrow-placement="right"
-        :default-expanded-names="bibleStore.expandedBookOsisCode ? [bibleStore.expandedBookOsisCode] : []"
-        @item-header-click="handleCollapseToggle" accordion>
+        :expanded-names="bibleStore.expandedBookOsisCode ? [bibleStore.expandedBookOsisCode] : []"
+        @item-header-click="handleCollapseToggle" accordion class="custom-collapse">
         <template v-for="testamentGroup in groupedBooks" :key="testamentGroup.key">
           <n-collapse-item disabled class="testament-group-header">
             <template #header>
@@ -24,12 +24,12 @@
               <n-icon :component="BookIcon" size="18" style="margin-right: 8px;" />
               {{ bookItem.label }}
             </template>
-            <template #arrow> <!-- Custom arrow if needed, or remove for default -->
+            <template #arrow>
               <n-icon
                 :component="bibleStore.expandedBookOsisCode === bookItem.key ? ChevronDownOutline : ChevronForwardOutline" />
             </template>
 
-            <div v-if="bibleStore.expandedBookOsisCode === bookItem.key">
+            <div v-if="bibleStore.expandedBookOsisCode === bookItem.key" class="chapter-grid-container">
               <div v-if="bibleStore.isLoadingChaptersForMenu" class="loading-container chapter-loader">
                 <n-spin size="small" />
               </div>
@@ -43,7 +43,7 @@
                   </n-button>
                 </n-gi>
               </n-grid>
-              <n-text v-else depth="3" style="padding: 10px; display: block; text-align: center;">
+              <n-text v-else depth="3" class="no-chapters-text">
                 No chapters found.
               </n-text>
             </div>
@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { onMounted, computed, h } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import {
   NLayoutSider, NH3, NSpin, NIcon, NCollapse, NCollapseItem,
   NGrid, NGi, NButton, NScrollbar, NText
@@ -68,6 +68,7 @@ import {
 } from '@vicons/ionicons5';
 
 const bibleStore = useBibleStore();
+const bookListScrollbarRef = ref(null);
 
 onMounted(() => {
   bibleStore.fetchBooks();
@@ -79,7 +80,7 @@ const groupedBooks = computed(() => {
     const bookMenuItem = {
       label: book.name,
       key: book.osis_code,
-      bookData: book, // Keep full data if needed elsewhere
+      bookData: book,
     };
     if (book.id < 47) testamentMap.OT.push(bookMenuItem);
     else if (book.id < 74) testamentMap.NT.push(bookMenuItem);
@@ -93,15 +94,10 @@ const groupedBooks = computed(() => {
   if (testamentMap.NT.length) {
     options.push({ label: 'Nouveau Testament', key: 'nt-group', children: testamentMap.NT });
   }
-  // if (testamentMap.OTHER.length) { // Optional: show "Other" group
-  //   options.push({ label: 'Autres', key: 'other-group', children: testamentMap.OTHER });
-  // }
   return options;
 });
 
-function handleCollapseToggle({ name, expanded }) {
-  // 'name' is the key of the book (bookItem.key)
-  // 'expanded' is true if it's being expanded, false if collapsing
+function handleCollapseToggle({ name }) {
   const bookClicked = bibleStore.books.find(b => b.osis_code === name);
   if (bookClicked) {
     bibleStore.handleBookMenuClick(bookClicked);
@@ -116,7 +112,6 @@ function isActiveChapter(bookOsisCode, chapterNum) {
   return bibleStore.selectedBook?.osis_code === bookOsisCode &&
     bibleStore.selectedChapter === chapterNum;
 }
-
 </script>
 
 <style scoped>
@@ -124,6 +119,8 @@ function isActiveChapter(bookOsisCode, chapterNum) {
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  /* Sider itself should not scroll if inner scrollbar is used */
 }
 
 .sidebar-header {
@@ -134,65 +131,69 @@ function isActiveChapter(bookOsisCode, chapterNum) {
 
 .book-list-scrollbar {
   flex-grow: 1;
-  overflow-y: auto;
+  /* The n-scrollbar component will manage its own overflow.
+     It needs to know its bounds. Its parent (.left-sidebar) is a flex column,
+     and .sidebar-header is flex-shrink:0, so .book-list-scrollbar with flex-grow:1
+     should fill the remaining vertical space.
+     If still no scrollbar, the content inside n-scrollbar is not tall enough,
+     OR the n-scrollbar itself isn't getting a proper height.
+  */
 }
 
-/* Deeper styling for n-collapse to make it tighter */
+.custom-collapse {
+  /* No specific height rules needed here, it will expand as much as its content */
+}
+
 :deep(.n-collapse .n-collapse-item .n-collapse-item__header) {
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
   padding-left: 12px !important;
-  /* Match header indent */
   font-size: 0.9em;
 }
 
 :deep(.n-collapse .n-collapse-item .n-collapse-item__header .n-collapse-item-arrow) {
   font-size: 1.1em !important;
-  /* Arrow size */
   margin-right: 8px !important;
 }
 
 :deep(.n-collapse .n-collapse-item .n-collapse-item__content-inner) {
-  padding-top: 5px !important;
-  padding-bottom: 10px !important;
-  padding-left: 10px !important;
-  padding-right: 10px !important;
+  padding: 6px 8px 8px 8px !important;
 }
 
 .testament-group-header :deep(.n-collapse-item__header) {
-  padding-top: 10px !important;
-  padding-bottom: 2px !important;
-  padding-left: 12px !important;
+  padding-top: 8px !important;
+  padding-bottom: 0px !important;
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--n-text-color-disabled);
   cursor: default !important;
-  /* Make group headers non-clickable in effect */
 }
 
 .testament-group-header :deep(.n-collapse-item-arrow) {
   display: none !important;
-  /* Hide arrow for group headers */
 }
 
+.chapter-grid-container {
+  /* container for loader or grid */
+}
 
 .chapter-grid {
-  /* padding: 5px 0px 5px 10px; Indent chapter grid slightly */
+  /* styles for the grid itself */
 }
 
 .chapter-button {
-  font-size: 0.9em;
-  /* Smaller chapter numbers */
-  padding: 4px 6px !important;
-  /* Tighter buttons */
-  min-width: 30px;
-  /* Ensure buttons have some width */
+  font-size: 0.85em;
+  padding: 3px 5px !important;
+  min-width: auto;
+  width: 100%;
   height: auto !important;
-  /* Adjust height to content */
-  line-height: 1.4;
+  line-height: 1.3;
+  justify-content: center;
 }
 
 .chapter-button.n-button--primary-type {
   font-weight: bold;
 }
-
 
 .loading-container {
   display: flex;
@@ -203,7 +204,13 @@ function isActiveChapter(bookOsisCode, chapterNum) {
 
 .chapter-loader {
   padding: 10px;
-  min-height: 50px;
-  /* Give some space for loader */
+  min-height: 40px;
+}
+
+.no-chapters-text {
+  padding: 10px;
+  display: block;
+  text-align: center;
+  font-size: 0.85em;
 }
 </style>

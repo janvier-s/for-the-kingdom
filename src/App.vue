@@ -1,16 +1,17 @@
 <template>
-  <n-config-provider>
+  <n-config-provider :theme-overrides="{ common: { bodyColor: '#fdfdfd' } }">
     <n-message-provider>
       <n-dialog-provider>
-        <div class="app-container">
+        <!-- This div will be the main flex container for the whole app page -->
+        <div class="app-page-container">
           <app-header />
-          <div class="main-content-wrapper">
+          <n-layout class="main-layout-has-sider" has-sider>
             <left-sidebar />
-            <!-- The main content area will now render the matched route component -->
-            <div class="router-view-container">
+            <n-layout-content class="router-view-wrapper">
               <router-view />
-            </div>
-          </div>
+            </n-layout-content>
+          </n-layout>
+          <!-- RightDrawer is an overlay, its position is less dependent on this flex structure -->
           <right-drawer />
         </div>
       </n-dialog-provider>
@@ -19,31 +20,48 @@
 </template>
 
 <script setup>
-// ... (imports for NConfigProvider, AppHeader, etc. as before) ...
+import {
+  NConfigProvider, NMessageProvider, NDialogProvider,
+  NLayout, NLayoutContent
+} from 'naive-ui'
 import AppHeader from './components/layout/AppHeader.vue'
 import LeftSidebar from './components/layout/LeftSidebar.vue'
-// MainContentArea is now a route component, so it's not directly imported here for layout
 import RightDrawer from './components/layout/RightDrawer.vue'
+
 </script>
 
 <style scoped>
-.app-container {
+.app-page-container {
   display: flex;
   flex-direction: column;
+  /* Stack header and main-layout vertically */
   height: 100vh;
+  /* Full viewport height */
   overflow: hidden;
+  /* Prevent whole page scroll if something overflows weirdly */
 }
 
-.main-content-wrapper {
-  display: flex;
+/* AppHeader is a direct child of app-page-container */
+/* Ensure AppHeader itself doesn't try to grow if it's not supposed to */
+/* (Usually headers have a fixed or auto height) */
+
+.main-layout-has-sider {
   flex-grow: 1;
+  /* This n-layout will take the remaining vertical space */
+  display: flex;
+  /* It's already a flex container by default when has-sider */
   overflow: hidden;
+  /* Prevent this layout from showing its own scrollbars if children misbehave */
 }
 
-.router-view-container {
-  flex-grow: 1; /* Takes up remaining space next to sidebar */
-  padding: 20px;
-  overflow-y: auto; /* Allows this area to scroll */
-  height: 100%; /* Important for overflow-y to work correctly within flex item */
+.router-view-wrapper {
+  /* n-layout-content usually handles its own flex-grow within an n-layout */
+  padding: 15px;
+  /* Slightly less padding */
+  overflow-y: auto;
+  /* Main content area scrolls */
+  /* height: 100%; */
+  /* This might not be needed if parent n-layout correctly gives it space */
+  /* In a flex row (n-layout has-sider), items stretch vertically by default */
 }
 </style>

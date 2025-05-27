@@ -16,7 +16,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // You'll need to know the lang_id for the language you want book names in.
 // src/services/supabaseService.js
 async function getBibleBooks(languageId = 1) {
-  console.log(`Fetching Bible books for languageId: ${languageId}`) // Add log
   const { data, error } = await supabase
     .from('bible_books')
     .select(
