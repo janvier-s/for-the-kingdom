@@ -6,7 +6,10 @@
           <app-header />
           <div class="main-content-wrapper">
             <left-sidebar />
-            <main-content-area />
+            <!-- The main content area will now render the matched route component -->
+            <div class="router-view-container">
+              <router-view />
+            </div>
           </div>
           <right-drawer />
         </div>
@@ -16,13 +19,11 @@
 </template>
 
 <script setup>
-import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
+// ... (imports for NConfigProvider, AppHeader, etc. as before) ...
 import AppHeader from './components/layout/AppHeader.vue'
 import LeftSidebar from './components/layout/LeftSidebar.vue'
-import MainContentArea from './components/layout/MainContentArea.vue'
+// MainContentArea is now a route component, so it's not directly imported here for layout
 import RightDrawer from './components/layout/RightDrawer.vue'
-
-// You might want to fetch initial data or set theme here later
 </script>
 
 <style scoped>
@@ -30,12 +31,19 @@ import RightDrawer from './components/layout/RightDrawer.vue'
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow: hidden; /* Prevent body scroll if content overflows */
+  overflow: hidden;
 }
 
 .main-content-wrapper {
   display: flex;
   flex-grow: 1;
-  overflow: hidden; /* Important for independent scrolling of sidebar/content */
+  overflow: hidden;
+}
+
+.router-view-container {
+  flex-grow: 1; /* Takes up remaining space next to sidebar */
+  padding: 20px;
+  overflow-y: auto; /* Allows this area to scroll */
+  height: 100%; /* Important for overflow-y to work correctly within flex item */
 }
 </style>
